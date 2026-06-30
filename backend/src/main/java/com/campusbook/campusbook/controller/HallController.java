@@ -1,0 +1,113 @@
+package com.campusbook.campusbook.controller;
+
+import com.campusbook.campusbook.dto.HallRequest;
+import com.campusbook.campusbook.dto.HallResponse;
+import com.campusbook.campusbook.entity.Hall;
+import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.enums.Role;
+import com.campusbook.campusbook.service.HallService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/halls")
+public class HallController {
+
+    @Autowired
+    private HallService hallService;
+
+    @GetMapping
+    public ResponseEntity<List<HallResponse>> listActiveHalls() {
+        List<HallResponse> halls = hallService.getAllActiveHalls().stream()
+                .map(HallResponse::from)
+                .toList();
+        return ResponseEntity.ok(halls);
+    }
+
+    @GetMapping("/admin")
+    public ResponseEntity<?> listAllHalls(@AuthenticationPrincipal User user) {
+        if (!isAdmin(user)) {
+            return ResponseEntity.status(403).body("Admin access required");
+        }
+
+        List<HallResponse> halls = hallService.getAllHalls().stream()
+                .map(HallResponse::from)
+                .toList();
+        return ResponseEntity.ok(halls);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getHall(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(HallResponse.from(hallService.getHallById(id)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createHall(@AuthenticationPrincipal User user,
+                                        @Valid @RequestBody HallRequest request) {
+        if (!isAdmin(user)) {
+            return ResponseEntity.status(403).body("Admin access required");
+        }
+
+        try {
+            Hall hall = toHall(request);
+            return ResponseEntity.ok(HallResponse.from(hallService.createHall(hall)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateHall(@AuthenticationPrincipal User user,
+                                        @PathVariable Long id,
+                                        @Valid @RequestBody HallRequest request) {
+        if (!isAdmin(user)) {
+            return ResponseEntity.status(403).body("Admin access required");
+        }
+
+        try {
+            Hall hall = toHall(request);
+            return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> disableHall(@AuthenticationPrincipal User user,
+                                         @PathVariable Long id) {
+        if (!isAdmin(user)) {
+            return ResponseEntity.status(403).body("Admin access required");
+        }
+
+        try {
+            return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        }
+    }
+
+    private Hall toHall(HallRequest request) {
+        Hall hall = new Hall();
+        hall.setBlock(request.getBlock());
+        hall.setRoomCode(request.getRoomCode());
+        hall.setCapacity(request.getCapacity());
+        hall.setHasProjector(request.isHasProjector());
+        hall.setHasAC(request.isHasAC());
+        hall.setHasMicrophone(request.isHasMicrophone());
+        hall.setActive(request.isActive());
+        return hall;
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && user.getRole() == Role.ADMIN;
+    }
+}

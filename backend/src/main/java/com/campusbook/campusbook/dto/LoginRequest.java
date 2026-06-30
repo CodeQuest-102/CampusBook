@@ -1,5 +1,6 @@
 package com.campusbook.campusbook.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -7,7 +8,8 @@ import lombok.Data;
 public class LoginRequest {
 
     @NotBlank
-    private String emailOrID; // accept either email or staff id/student id for login
+    @JsonAlias("emailOrID")
+    private String emailOrId; // accept either email or staff id/student id for login
 
     @NotBlank
     private String password;
