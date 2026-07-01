@@ -7,11 +7,11 @@ import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingStatus;
-import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.service.BookingService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,19 +26,15 @@ public class BookingController {
 
     @PostMapping
     public ResponseEntity<?> createBooking(@AuthenticationPrincipal User user,
-                                           @Valid @RequestBody BookingRequest request) {
-        try {
-            Booking booking = new Booking();
-            booking.setUser(user);
-            booking.setHall(hallReference(request.getHallId()));
-            booking.setPurpose(request.getPurpose());
-            booking.setStartTime(request.getStartTime());
-            booking.setEndTime(request.getEndTime());
+                                        @Valid @RequestBody BookingRequest request) {
+        Booking booking = new Booking();
+        booking.setUser(user);
+        booking.setHall(hallReference(request.getHallId()));
+        booking.setPurpose(request.getPurpose());
+        booking.setStartTime(request.getStartTime());
+        booking.setEndTime(request.getEndTime());
 
-            return ResponseEntity.ok(BookingResponse.from(bookingService.createBooking(booking)));
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        return ResponseEntity.ok(BookingResponse.from(bookingService.createBooking(booking)));
     }
 
     @GetMapping("/my")
@@ -49,84 +45,49 @@ public class BookingController {
         return ResponseEntity.ok(bookings);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public ResponseEntity<?> getAllBookings(@AuthenticationPrincipal User user) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
+    public ResponseEntity<List<BookingResponse>> getAllBookings() {
         List<BookingResponse> bookings = bookingService.getAllBookings().stream()
                 .map(BookingResponse::from)
                 .toList();
         return ResponseEntity.ok(bookings);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/pending")
-    public ResponseEntity<?> getPendingBookings(@AuthenticationPrincipal User user) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
+    public ResponseEntity<List<BookingResponse>> getPendingBookings() {
         List<BookingResponse> bookings = bookingService.getBookingsByStatus(BookingStatus.PENDING).stream()
                 .map(BookingResponse::from)
                 .toList();
         return ResponseEntity.ok(bookings);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{id}/approve")
     public ResponseEntity<?> approveBooking(@AuthenticationPrincipal User user,
                                             @PathVariable Long id) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
-        try {
-            return ResponseEntity.ok(BookingResponse.from(bookingService.approveBooking(id, user)));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        return ResponseEntity.ok(BookingResponse.from(bookingService.approveBooking(id, user)));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{id}/reject")
     public ResponseEntity<?> rejectBooking(@AuthenticationPrincipal User user,
-                                           @PathVariable Long id,
-                                           @RequestBody(required = false) RejectBookingRequest request) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
+                                            @PathVariable Long id,
+                                            @RequestBody(required = false) RejectBookingRequest request) {
         String reason = request == null ? null : request.getReason();
-
-        try {
-            return ResponseEntity.ok(BookingResponse.from(bookingService.rejectBooking(id, user, reason)));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        }
+        return ResponseEntity.ok(BookingResponse.from(bookingService.rejectBooking(id, user, reason)));
     }
 
     @PostMapping("/{id}/cancel")
     public ResponseEntity<?> cancelBooking(@AuthenticationPrincipal User user,
-                                           @PathVariable Long id) {
-        try {
-            return ResponseEntity.ok(BookingResponse.from(bookingService.cancelBooking(id, user)));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(403).body(e.getMessage());
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+                                            @PathVariable Long id) {
+        return ResponseEntity.ok(BookingResponse.from(bookingService.cancelBooking(id, user)));
     }
 
     private Hall hallReference(Long hallId) {
         Hall hall = new Hall();
         hall.setId(hallId);
         return hall;
-    }
-
-    private boolean isAdmin(User user) {
-        return user != null && user.getRole() == Role.ADMIN;
     }
 }

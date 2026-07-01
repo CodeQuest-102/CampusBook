@@ -5,6 +5,8 @@ import com.campusbook.campusbook.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.campusbook.campusbook.exception.DuplicateUserException;
+import com.campusbook.campusbook.exception.InvalidCredentialsException;
 
 import java.util.List;
 
@@ -19,11 +21,11 @@ public class UserService {
 
     public User registerUser(User user) {
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new IllegalArgumentException("Email already registered");
+            throw new DuplicateUserException("Email already registered");
         }
         if (userRepository.existsByStaffOrStudentId(user.getStaffOrStudentId())) {
-            throw new IllegalArgumentException("Staff/Student ID already registered");
-        }
+            throw new DuplicateUserException("Staff/Student ID already registered");
+    }
 
         // Hash the password before saving — never store plain text
         user.setPassword(passwordEncoder.encode(user.getPassword()));
@@ -32,9 +34,9 @@ public class UserService {
     }
 
     public User findByEmailOrStaffId(String emailOrId) {
-        return userRepository.findByEmail(emailOrId)
-                .or(() -> userRepository.findByStaffOrStudentId(emailOrId))
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    return userRepository.findByEmail(emailOrId)
+            .or(() -> userRepository.findByStaffOrStudentId(emailOrId))
+            .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
     }
 
     public List<User> getAllUsers() {

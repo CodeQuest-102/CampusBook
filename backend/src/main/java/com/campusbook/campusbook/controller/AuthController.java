@@ -4,6 +4,7 @@ import com.campusbook.campusbook.dto.AuthResponse;
 import com.campusbook.campusbook.dto.LoginRequest;
 import com.campusbook.campusbook.dto.RegisterRequest;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.InvalidCredentialsException;
 import com.campusbook.campusbook.security.JwtUtil;
 import com.campusbook.campusbook.service.UserService;
 import jakarta.validation.Valid;
@@ -26,7 +27,7 @@ public class AuthController {
     private JwtUtil jwtUtil;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         User user = new User();
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
@@ -35,40 +36,26 @@ public class AuthController {
         user.setRole(request.getRole());
         user.setDepartment(request.getDepartment());
 
-        try {
-            User saved = userService.registerUser(user);
-            String token = jwtUtil.generateToken(saved.getEmail());
+        User saved = userService.registerUser(user);
+        String token = jwtUtil.generateToken(saved.getEmail());
 
-            return ResponseEntity.ok(new AuthResponse(
-                    token,
-                    saved.getFullName(),
-                    saved.getEmail(),
-                    saved.getRole().name()
-            ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        return ResponseEntity.ok(new AuthResponse(
+                token, saved.getFullName(), saved.getEmail(), saved.getRole().name()
+        ));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        try {
-            User user = userService.findByEmailOrStaffId(request.getEmailOrId());
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        User user = userService.findByEmailOrStaffId(request.getEmailOrId());
 
-            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-                return ResponseEntity.status(401).body("Invalid credentials");
-            }
-
-            String token = jwtUtil.generateToken(user.getEmail());
-
-            return ResponseEntity.ok(new AuthResponse(
-                    token,
-                    user.getFullName(),
-                    user.getEmail(),
-                    user.getRole().name()
-            ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(401).body("Invalid credentials");
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("Invalid credentials");
         }
+
+        String token = jwtUtil.generateToken(user.getEmail());
+
+        return ResponseEntity.ok(new AuthResponse(
+                token, user.getFullName(), user.getEmail(), user.getRole().name()
+        ));
     }
 }

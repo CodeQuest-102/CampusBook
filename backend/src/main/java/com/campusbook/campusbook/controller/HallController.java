@@ -3,13 +3,11 @@ package com.campusbook.campusbook.controller;
 import com.campusbook.campusbook.dto.HallRequest;
 import com.campusbook.campusbook.dto.HallResponse;
 import com.campusbook.campusbook.entity.Hall;
-import com.campusbook.campusbook.entity.User;
-import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.service.HallService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,12 +27,9 @@ public class HallController {
         return ResponseEntity.ok(halls);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin")
-    public ResponseEntity<?> listAllHalls(@AuthenticationPrincipal User user) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
+    public ResponseEntity<List<HallResponse>> listAllHalls() {
         List<HallResponse> halls = hallService.getAllHalls().stream()
                 .map(HallResponse::from)
                 .toList();
@@ -42,57 +37,29 @@ public class HallController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getHall(@PathVariable Long id) {
-        try {
-            return ResponseEntity.ok(HallResponse.from(hallService.getHallById(id)));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        }
+    public ResponseEntity<HallResponse> getHall(@PathVariable Long id) {
+        return ResponseEntity.ok(HallResponse.from(hallService.getHallById(id)));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<?> createHall(@AuthenticationPrincipal User user,
-                                        @Valid @RequestBody HallRequest request) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
-        try {
-            Hall hall = toHall(request);
-            return ResponseEntity.ok(HallResponse.from(hallService.createHall(hall)));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<HallResponse> createHall(@Valid @RequestBody HallRequest request) {
+        Hall hall = toHall(request);
+        return ResponseEntity.ok(HallResponse.from(hallService.createHall(hall)));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateHall(@AuthenticationPrincipal User user,
-                                        @PathVariable Long id,
-                                        @Valid @RequestBody HallRequest request) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
-        try {
-            Hall hall = toHall(request);
-            return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall)));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<HallResponse> updateHall(@PathVariable Long id,
+                                                    @Valid @RequestBody HallRequest request) {
+        Hall hall = toHall(request);
+        return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall)));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> disableHall(@AuthenticationPrincipal User user,
-                                         @PathVariable Long id) {
-        if (!isAdmin(user)) {
-            return ResponseEntity.status(403).body("Admin access required");
-        }
-
-        try {
-            return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id)));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        }
+    public ResponseEntity<HallResponse> disableHall(@PathVariable Long id) {
+        return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id)));
     }
 
     private Hall toHall(HallRequest request) {
@@ -105,9 +72,5 @@ public class HallController {
         hall.setHasMicrophone(request.isHasMicrophone());
         hall.setActive(request.isActive());
         return hall;
-    }
-
-    private boolean isAdmin(User user) {
-        return user != null && user.getRole() == Role.ADMIN;
     }
 }
