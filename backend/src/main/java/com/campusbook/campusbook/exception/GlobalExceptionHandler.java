@@ -22,4 +22,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleForbidden(SecurityException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
     }
+
+    @ExceptionHandler(DuplicateUserException.class)
+public ResponseEntity<?> handleDuplicateUser(DuplicateUserException e) {
+    return ResponseEntity.badRequest().body(e.getMessage());
+}
+
+@ExceptionHandler(InvalidCredentialsException.class)
+public ResponseEntity<?> handleInvalidCredentials(InvalidCredentialsException e) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+}
 }
