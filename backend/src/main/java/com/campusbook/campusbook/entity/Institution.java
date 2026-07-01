@@ -1,8 +1,7 @@
 package com.campusbook.campusbook.entity;
 
-import com.campusbook.campusbook.enums.Role;
+import com.campusbook.campusbook.enums.SubscriptionTier;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,39 +10,28 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "institutions")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Institution {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "institution_id", nullable = false)
-    private Institution institution;
-
-    @NotBlank
-    private String fullName;
-
-    @Email
     @NotBlank
     @Column(unique = true)
-    private String email;
-
-    @NotBlank
-    @Column(unique = true, name = "staff_or_student_id")
-    private String staffOrStudentId;
-
-    @NotBlank
-    private String password;
+    private String name;
 
     @Enumerated(EnumType.STRING)
-    private Role role;
+    @Column(nullable = false)
+    private SubscriptionTier tier = SubscriptionTier.FREE;
 
-    private String department;
+    // Stub feature flags for future tiers — not enforced yet
+    private boolean analyticsEnabled = false;
+    private boolean customNotificationsEnabled = false;
+    private boolean apiIntegrationsEnabled = false;
 
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

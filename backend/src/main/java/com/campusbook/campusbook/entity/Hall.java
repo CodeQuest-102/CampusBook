@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+
 @Entity
 @Table(name = "halls")
 @Data
@@ -23,6 +24,10 @@ public class Hall {
     @NotBlank
     @Column(unique = true, name = "room_code")
     private String roomCode;       // e.g. "GF1", "SF1" — what's on the door
+
+    @ManyToOne
+    @JoinColumn(name = "institution_id", nullable = false)
+    private Institution institution;
 
     private Integer capacity;
 
