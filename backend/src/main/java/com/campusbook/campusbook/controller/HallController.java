@@ -1,5 +1,6 @@
 package com.campusbook.campusbook.controller;
 
+import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.dto.HallRequest;
 import com.campusbook.campusbook.dto.HallResponse;
 import com.campusbook.campusbook.entity.Hall;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
@@ -43,9 +45,10 @@ public class HallController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<HallResponse> createHall(@Valid @RequestBody HallRequest request) {
+    public ResponseEntity<HallResponse> createHall(@AuthenticationPrincipal User user,
+                                                    @Valid @RequestBody HallRequest request) {
         Hall hall = toHall(request);
-        return ResponseEntity.ok(HallResponse.from(hallService.createHall(hall)));
+        return ResponseEntity.ok(HallResponse.from(hallService.createHall(hall, user)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")

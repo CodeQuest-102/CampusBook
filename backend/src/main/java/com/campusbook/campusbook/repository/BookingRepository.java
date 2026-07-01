@@ -31,4 +31,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime
     );
+
+    @Query("""
+    SELECT COUNT(b) FROM Booking b
+    WHERE b.hall.institution.id = :institutionId
+    AND b.createdAt BETWEEN :monthStart AND :monthEnd
+""")
+long countBookingsForInstitutionInRange(
+    @Param("institutionId") Long institutionId,
+    @Param("monthStart") LocalDateTime monthStart,
+    @Param("monthEnd") LocalDateTime monthEnd
+);
 }

@@ -1,6 +1,9 @@
 package com.campusbook.campusbook.service;
 
 import com.campusbook.campusbook.entity.Hall;
+import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.enums.SubscriptionTier;
+import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.HallRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,13 +13,19 @@ import java.util.List;
 @Service
 public class HallService {
 
+    private static final int FREE_TIER_HALL_LIMIT = 5;
+
     @Autowired
     private HallRepository hallRepository;
 
-    public Hall createHall(Hall hall) {
+    public Hall createHall(Hall hall, User admin) {
         hallRepository.findByRoomCode(hall.getRoomCode()).ifPresent(existing -> {
             throw new IllegalArgumentException("Room code already exists");
         });
+
+        hall.setInstitution(admin.getInstitution());
+        enforceHallLimit(admin.getInstitution());
+
         return hallRepository.save(hall);
     }
 
@@ -40,13 +49,11 @@ public class HallService {
 
     public Hall updateHall(Long id, Hall updatedHall) {
         Hall hall = getHallById(id);
-
         hallRepository.findByRoomCode(updatedHall.getRoomCode()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
                 throw new IllegalArgumentException("Room code already exists");
             }
         });
-
         hall.setBlock(updatedHall.getBlock());
         hall.setRoomCode(updatedHall.getRoomCode());
         hall.setCapacity(updatedHall.getCapacity());
@@ -54,7 +61,6 @@ public class HallService {
         hall.setHasAC(updatedHall.isHasAC());
         hall.setHasMicrophone(updatedHall.isHasMicrophone());
         hall.setActive(updatedHall.isActive());
-
         return hallRepository.save(hall);
     }
 
@@ -62,5 +68,16 @@ public class HallService {
         Hall hall = getHallById(id);
         hall.setActive(false);
         return hallRepository.save(hall);
+    }
+
+    private void enforceHallLimit(com.campusbook.campusbook.entity.Institution institution) {
+        if (institution.getTier() == SubscriptionTier.FREE) {
+            long activeCount = hallRepository.countByInstitutionIdAndActiveTrue(institution.getId());
+            if (activeCount >= FREE_TIER_HALL_LIMIT) {
+                throw new SubscriptionLimitExceededException(
+                        "Free tier allows a maximum of " + FREE_TIER_HALL_LIMIT + " active halls. Upgrade to Campus Pro for unlimited halls."
+                );
+            }
+        }
     }
 }

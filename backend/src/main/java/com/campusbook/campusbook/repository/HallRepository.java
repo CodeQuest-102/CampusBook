@@ -10,4 +10,6 @@ public interface HallRepository extends JpaRepository<Hall, Long> {
     Optional<Hall> findByRoomCode(String roomCode);
 
     List<Hall> findByActiveTrue();
+
+    long countByInstitutionIdAndActiveTrue(Long institutionId);
 }
