@@ -19,15 +19,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByHallId(Long hallId);
 
     // This is the conflict-check query — finds overlapping APPROVED bookings for a hall
-    @Query("""
+        @Query("""
         SELECT b FROM Booking b
         WHERE b.hall.id = :hallId
+        AND b.id != :excludeBookingId
         AND b.status = 'APPROVED'
         AND b.startTime < :endTime
         AND b.endTime > :startTime
     """)
     List<Booking> findOverlappingBookings(
         @Param("hallId") Long hallId,
+        @Param("excludeBookingId") Long excludeBookingId,
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime
     );
@@ -35,9 +37,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("""
     SELECT COUNT(b) FROM Booking b
     WHERE b.hall.institution.id = :institutionId
-    AND b.createdAt BETWEEN :monthStart AND :monthEnd
-""")
-long countBookingsForInstitutionInRange(
+    AND b.startTime BETWEEN :monthStart AND :monthEnd
+    """)
+    long countBookingsForInstitutionInRange(
     @Param("institutionId") Long institutionId,
     @Param("monthStart") LocalDateTime monthStart,
     @Param("monthEnd") LocalDateTime monthEnd

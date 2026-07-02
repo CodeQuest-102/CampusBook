@@ -2,18 +2,24 @@ package com.campusbook.campusbook.service;
 
 import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
+import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingStatus;
+import com.campusbook.campusbook.enums.SubscriptionTier;
+import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 
 @Service
 public class BookingService {
+
+    private static final int FREE_TIER_MONTHLY_BOOKING_LIMIT = 20;
 
     @Autowired
     private BookingRepository bookingRepository;
@@ -32,14 +38,17 @@ public class BookingService {
         }
 
         List<Booking> conflicts = bookingRepository.findOverlappingBookings(
-                hall.getId(),
-                booking.getStartTime(),
-                booking.getEndTime()
+            hall.getId(),
+            -1L,
+            booking.getStartTime(),
+            booking.getEndTime()
         );
 
         if (!conflicts.isEmpty()) {
             throw new IllegalStateException("This hall is already booked for an overlapping time slot");
         }
+
+        enforceMonthlyBookingLimit(hall.getInstitution(), booking.getStartTime());
 
         booking.setHall(hall);
         booking.setStatus(BookingStatus.PENDING);
@@ -49,11 +58,11 @@ public class BookingService {
     public Booking approveBooking(Long bookingId, User admin) {
         Booking booking = getBookingById(bookingId);
 
-        // Check for conflicts with already-approved bookings before approving
         List<Booking> conflicts = bookingRepository.findOverlappingBookings(
-                booking.getHall().getId(),
-                booking.getStartTime(),
-                booking.getEndTime()
+            booking.getHall().getId(),
+            booking.getId(),
+            booking.getStartTime(),
+            booking.getEndTime()
         );
 
         if (!conflicts.isEmpty()) {
@@ -113,6 +122,25 @@ public class BookingService {
         }
         if (startTime.isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Bookings cannot start in the past");
+        }
+    }
+
+    private void enforceMonthlyBookingLimit(Institution institution, LocalDateTime bookingStart) {
+        if (institution.getTier() == SubscriptionTier.FREE) {
+            YearMonth targetMonth = YearMonth.from(bookingStart);
+            LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
+            LocalDateTime monthEnd = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+
+            long bookingCount = bookingRepository.countBookingsForInstitutionInRange(
+                    institution.getId(), monthStart, monthEnd
+            );
+
+            if (bookingCount >= FREE_TIER_MONTHLY_BOOKING_LIMIT) {
+                throw new SubscriptionLimitExceededException(
+                        "Free tier allows a maximum of " + FREE_TIER_MONTHLY_BOOKING_LIMIT +
+                        " bookings per month. Upgrade to Campus Pro for unlimited bookings."
+                );
+            }
         }
     }
 }
