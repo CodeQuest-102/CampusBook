@@ -43,7 +43,7 @@ export default function LoginScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.emoji}>👋</Text>
+          <Text style={styles.emoji}></Text>
           <Text style={styles.title}>Welcome Back!</Text>
           <Text style={styles.subtitle}>Login to your account</Text>
         </View>

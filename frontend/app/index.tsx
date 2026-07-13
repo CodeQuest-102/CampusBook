@@ -1,27 +1,45 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import Colors from '../constants/colors';
 
 export default function SplashScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // Show splash for 2 seconds then go to login
     const timer = setTimeout(() => {
-      router.replace('/login');
-    }, 2000);
+      router.replace('/onboarding');
+    }, 2500);
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Text style={styles.logoIcon}>📚</Text>
-        <Text style={styles.logoText}>CampusBook</Text>
-        <Text style={styles.tagline}>Smart Lecture Room Booking System</Text>
+
+      {/* Top — CampusBook logo */}
+      <View style={styles.topSection}>
+        <Image
+          source={require('../assets/splashScreenImages/splashScreen.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.appName}>CampusBook</Text>
+        <Text style={styles.tagline}>Smart Lecture Room</Text>
+        <Text style={styles.tagline}>Booking System</Text>
       </View>
-      <Text style={styles.institution}>KNUST</Text>
+
+      {/* Bottom — KNUST logo + motto */}
+      <View style={styles.bottomSection}>
+        <Image
+          source={require('../assets/splashScreenImages/knustlogo.png')}
+          style={styles.knustLogo}
+          resizeMode="contain"
+        />
+        <View style={styles.knustTextContainer}>
+          <Text style={styles.knustText}>KNUST</Text>
+          <Text style={styles.motto}>Nyansapɔ wɔsane no badwenma</Text>
+        </View>
+      </View>
+
     </View>
   );
 }
@@ -29,34 +47,56 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00309F',
+    paddingHorizontal: 24,
+    paddingVertical: 80,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  topSection: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
+    marginBottom: 80,
   },
-  logoContainer: {
-    alignItems: 'center',
-  },
-  logoIcon: {
-    fontSize: 64,
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: 16,
   },
-  logoText: {
+  appName: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: Colors.white,
+    color: '#FFFFFF',
     letterSpacing: 1,
   },
   tagline: {
-    fontSize: 14,
+    fontSize: 15,
     color: 'rgba(255,255,255,0.75)',
     textAlign: 'center',
-    marginTop: 8,
   },
-  institution: {
-    position: 'absolute',
-    bottom: 48,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
+  bottomSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  knustLogo: {
+    width: 44,
+    height: 44,
+  },
+  knustTextContainer: {
+    gap: 2,
+  },
+  knustText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
     letterSpacing: 2,
+  },
+  motto: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    fontStyle: 'italic',
   },
 });

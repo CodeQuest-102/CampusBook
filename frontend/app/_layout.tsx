@@ -13,13 +13,19 @@ function AuthGuard() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const inAuthScreen = segments[0] === 'login' || segments[0] === 'register';
+    const inOnboarding = segments[0] === 'onboarding';
+    const inSplash = segments[0] === undefined;
+    const inTabs = segments[0] === '(tabs)';
 
-    if (!user && !inAuthGroup) {
-      // Not logged in — go to login
+    if (inSplash || inOnboarding) {
+      // Let splash and onboarding handle their own navigation
+      return;
+    }
+
+    if (!user && !inAuthScreen) {
       router.replace('/login');
-    } else if (user && inAuthGroup) {
-      // Already logged in — go to home
+    } else if (user && inAuthScreen) {
       router.replace('/(tabs)/home');
     }
   }, [user, isLoading, segments]);
@@ -34,7 +40,6 @@ function AuthGuard() {
 
   return null;
 }
-
 // ─── Root Layout ──────────────────────────────────────────────────────────────
 export default function RootLayout() {
   return (
@@ -42,6 +47,7 @@ export default function RootLayout() {
       <AuthGuard />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
         <Stack.Screen name="(tabs)" />
