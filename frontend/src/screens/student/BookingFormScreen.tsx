@@ -35,6 +35,8 @@ export default function BookingFormScreen({ route, navigation }: Props) {
   const [start, setStart] = useState('10:00 AM');
   const [end, setEnd] = useState('12:00 PM');
   const [purpose, setPurpose] = useState('');
+  const [attendance, setAttendance] = useState('');
+  const [notes, setNotes] = useState('');
   const [picker, setPicker] = useState<PickerKind | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -68,9 +70,12 @@ export default function BookingFormScreen({ route, navigation }: Props) {
     setFormError(null);
     setSubmitting(true);
     try {
+      const parsedAttendance = parseInt(attendance, 10);
       await bookingsApi.createBooking({
         hallId: Number(room.id),
         purpose: purpose.trim(),
+        notes: notes.trim() || undefined,
+        attendance: Number.isNaN(parsedAttendance) ? undefined : parsedAttendance,
         startTime: toLocalDateTimeIso(date, start),
         endTime: toLocalDateTimeIso(date, end),
       });
@@ -136,10 +141,19 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           onChangeText={setPurpose}
         />
         <TextField
+          label="Expected Attendance"
+          placeholder="80"
+          keyboardType="number-pad"
+          value={attendance}
+          onChangeText={setAttendance}
+        />
+        <TextField
           label="Additional Notes (Optional)"
           placeholder="Any other notes..."
           multiline
           numberOfLines={3}
+          value={notes}
+          onChangeText={setNotes}
           containerStyle={{ marginBottom: spacing.sm }}
         />
 

@@ -12,4 +12,11 @@ import { Platform } from 'react-native';
  */
 const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
 
-export const API_BASE_URL = `http://${HOST}:8080`;
+/**
+ * Override for physical devices / deployed backends by setting
+ * `EXPO_PUBLIC_API_URL` (e.g. in a `.env` file or the shell) to your Mac's LAN
+ * IP or the hosted URL, e.g. `EXPO_PUBLIC_API_URL=http://192.168.1.20:8080`.
+ * Expo inlines `EXPO_PUBLIC_*` vars at build time.
+ */
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? `http://${HOST}:8080`;

@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Screen, TopBar, StateView } from '../../components';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Screen, TopBar, StateView, Button } from '../../components';
 import { colors, radius, shadow, spacing, typography } from '../../theme';
 import { reportsApi } from '../../api';
 import type { ReportPeriod } from '../../api/reports';
 import { useApiData } from '../../hooks/useApiData';
+import type { RootStackParamList } from '../../navigation/types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const PERIODS: { label: string; value: ReportPeriod }[] = [
   { label: 'This Week', value: 'week' },
@@ -14,10 +19,16 @@ const PERIODS: { label: string; value: ReportPeriod }[] = [
 ];
 
 export default function ReportsScreen() {
+  const navigation = useNavigation<Nav>();
   const [periodIndex, setPeriodIndex] = useState(1);
   const period = PERIODS[periodIndex].value;
 
-  const { data, loading, error, reload } = useApiData(() => reportsApi.getSummary(period));
+  const { data, loading, error, errorStatus, reload } = useApiData(() =>
+    reportsApi.getSummary(period),
+  );
+
+  // 402 = analytics is gated behind Campus Pro.
+  const locked = errorStatus === 402;
 
   const series = data?.bookingsOverTime ?? [];
   const maxValue = Math.max(1, ...series.map((b) => b.value));
@@ -26,16 +37,35 @@ export default function ReportsScreen() {
     <>
       <TopBar variant="title" title="Reports & Analytics" />
       <Screen scroll>
-        <TouchableOpacity
-          style={styles.period}
-          activeOpacity={0.8}
-          onPress={() => setPeriodIndex((i) => (i + 1) % PERIODS.length)}
-        >
-          <Text style={styles.periodText}>{PERIODS[periodIndex].label}</Text>
-          <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {locked ? (
+          <View style={styles.lockCard}>
+            <View style={styles.lockIcon}>
+              <Ionicons name="lock-closed" size={28} color={colors.primary} />
+            </View>
+            <Text style={styles.lockTitle}>Analytics is a Campus Pro feature</Text>
+            <Text style={styles.lockBody}>
+              Upgrade to Campus Pro to unlock the analytics dashboard, utilization insights, and
+              full reporting.
+            </Text>
+            <Button
+              title="View Plans"
+              icon="ribbon-outline"
+              onPress={() => navigation.navigate('Subscription')}
+              style={{ marginTop: spacing.lg }}
+            />
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={styles.period}
+              activeOpacity={0.8}
+              onPress={() => setPeriodIndex((i) => (i + 1) % PERIODS.length)}
+            >
+              <Text style={styles.periodText}>{PERIODS[periodIndex].label}</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
 
-        <StateView loading={loading} error={error} onRetry={reload} />
+            <StateView loading={loading} error={error} onRetry={reload} />
 
         {!loading && !error && data && (
           <>
@@ -78,6 +108,8 @@ export default function ReportsScreen() {
                 ))}
               </View>
             </View>
+          </>
+        )}
           </>
         )}
       </Screen>
@@ -125,6 +157,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   periodText: { fontWeight: '600', color: colors.text, marginRight: spacing.sm },
+  lockCard: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    marginTop: spacing.xl,
+    ...shadow.card,
+  },
+  lockIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  lockTitle: { ...typography.title, fontSize: 16, textAlign: 'center' },
+  lockBody: {
+    ...typography.bodyMuted,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    lineHeight: 20,
+  },
   row: { flexDirection: 'row' },
   statCard: {
     flex: 1,

@@ -10,6 +10,8 @@ interface Props {
   /** Set false when the screen renders its own TopBar (which handles the top inset). */
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
   contentStyle?: ViewStyle;
+  /** Optional pull-to-refresh control (only used when `scroll` is true). */
+  refreshControl?: React.ReactElement;
 }
 
 /** Standard white screen surface with safe-area handling + optional scroll. */
@@ -19,6 +21,7 @@ export default function Screen({
   padded = true,
   edges = ['left', 'right'],
   contentStyle,
+  refreshControl,
 }: Props) {
   const inner = (
     <View style={[styles.flex, padded && styles.padded, contentStyle]}>{children}</View>
@@ -32,6 +35,7 @@ export default function Screen({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, padded && styles.padded, contentStyle]}
           keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
         >
           {children}
         </ScrollView>

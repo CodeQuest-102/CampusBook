@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen, TopBar, Avatar, StatusPill, SearchBar, StateView } from '../../components';
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
@@ -13,21 +13,34 @@ const TABS = ['All', 'Students', 'Staff', 'Admins'];
 
 export default function UsersScreen({ navigation }: Props) {
   const [tab, setTab] = useState('All');
+  const [query, setQuery] = useState('');
 
-  const { data, loading, error, reload } = useApiData(async () =>
+  const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
     (await usersApi.listUsers()).map(userToDirectory),
   );
 
+  const q = query.trim().toLowerCase();
   const users = data ?? [];
-  const filtered = users.filter((u) =>
-    tab === 'All' ? true : u.role === tab.slice(0, -1),
-  );
+  const filtered = users.filter((u) => {
+    if (tab !== 'All' && u.role !== tab.slice(0, -1)) return false;
+    if (!q) return true;
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.department.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <>
       <TopBar variant="title" title="Users" onBack={() => navigation.goBack()} rightIcon="person-add-outline" />
-      <Screen scroll>
-        <SearchBar placeholder="Search users..." />
+      <Screen
+        scroll
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+        }
+      >
+        <SearchBar placeholder="Search users..." value={query} onChangeText={setQuery} />
 
         <View style={styles.tabs}>
           {TABS.map((t) => {

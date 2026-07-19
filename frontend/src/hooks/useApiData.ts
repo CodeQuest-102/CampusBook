@@ -10,21 +10,44 @@ import { ApiError } from '../api';
 export function useApiData<T>(loader: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // HTTP status of the last error (e.g. 402), so screens can special-case it.
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   // Keep the latest loader without making it a focus-effect dependency.
   const loaderRef = useRef(loader);
   loaderRef.current = loader;
 
+  const captureError = (e: unknown, fallback: string) => {
+    setError(e instanceof ApiError ? e.message : fallback);
+    setErrorStatus(e instanceof ApiError ? e.status : null);
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorStatus(null);
     try {
       setData(await loaderRef.current());
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not load data. Please try again.');
+      captureError(e, 'Could not load data. Please try again.');
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  /** Pull-to-refresh: reloads without flipping the full-screen loading state. */
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setData(await loaderRef.current());
+      setError(null);
+      setErrorStatus(null);
+    } catch (e) {
+      captureError(e, 'Could not refresh. Please try again.');
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -40,5 +63,5 @@ export function useApiData<T>(loader: () => Promise<T>) {
     }, [load]),
   );
 
-  return { data, loading, error, reload: load };
+  return { data, loading, refreshing, error, errorStatus, reload: load, refresh };
 }

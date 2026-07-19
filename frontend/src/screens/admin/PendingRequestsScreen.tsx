@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, TopBar, Avatar, Button, StateView } from '../../components';
@@ -15,7 +15,7 @@ export default function PendingRequestsScreen() {
   const navigation = useNavigation<Nav>();
   const [tab, setTab] = useState('all');
 
-  const { data, loading, error, reload } = useApiData(async () =>
+  const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
     (await bookingsApi.pendingBookings()).map(bookingToRequest),
   );
 
@@ -41,7 +41,12 @@ export default function PendingRequestsScreen() {
   return (
     <>
       <TopBar variant="title" title="Pending Requests" />
-      <Screen scroll>
+      <Screen
+        scroll
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+        }
+      >
         <View style={styles.tabs}>
           {tabs.map((t) => {
             const on = tab === t.key;

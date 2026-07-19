@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import type { Role } from '../data/placeholder';
-import { authApi, roleFromBackend, roleToBackend } from '../api';
+import { authApi, usersApi, roleFromBackend, roleToBackend } from '../api';
 import {
   saveToken,
   clearToken,
@@ -92,7 +92,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(
     async (emailOrId: string, password: string) => {
       const auth = await authApi.login({ emailOrId, password });
-      await applyAuth(auth, '');
+      // Persist the token first so the follow-up /me call is authenticated.
+      await saveToken(auth.token);
+      // The login response omits department; fetch the full profile to fill it.
+      let department = '';
+      try {
+        department = (await usersApi.getMe()).department ?? '';
+      } catch {
+        // non-fatal — profile just shows an empty department until next edit
+      }
+      await applyAuth(auth, department);
     },
     [applyAuth],
   );

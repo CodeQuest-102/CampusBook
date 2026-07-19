@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { BookingResponse, BookingPayload } from './types';
+import type { BookingResponse, BookingPayload, ReschedulePayload } from './types';
 
 export function createBooking(payload: BookingPayload): Promise<BookingResponse> {
   return apiFetch<BookingResponse>('/api/bookings', { method: 'POST', body: payload });
@@ -32,4 +32,11 @@ export function rejectBooking(id: number | string, reason?: string): Promise<Boo
 
 export function cancelBooking(id: number | string): Promise<BookingResponse> {
   return apiFetch<BookingResponse>(`/api/bookings/${id}/cancel`, { method: 'POST' });
+}
+
+export function reschedule(
+  id: number | string,
+  payload: ReschedulePayload,
+): Promise<BookingResponse> {
+  return apiFetch<BookingResponse>(`/api/bookings/${id}/reschedule`, { method: 'PUT', body: payload });
 }

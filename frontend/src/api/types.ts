@@ -62,6 +62,8 @@ export interface BookingResponse {
   userRole: BackendRole | null;
   userDepartment: string | null;
   purpose: string;
+  notes: string | null;
+  attendance: number | null;
   startTime: string; // ISO LocalDateTime, e.g. "2026-05-16T10:00:00"
   endTime: string;
   status: BackendBookingStatus;
@@ -73,8 +75,26 @@ export interface BookingResponse {
 export interface BookingPayload {
   hallId: number;
   purpose: string;
+  notes?: string;
+  attendance?: number;
   startTime: string; // ISO LocalDateTime (no timezone)
   endTime: string;
+}
+
+export interface ReschedulePayload {
+  startTime: string;
+  endTime: string;
+}
+
+export interface UpdateProfilePayload {
+  fullName?: string;
+  department?: string;
+}
+
+export interface ResetPasswordPayload {
+  emailOrId: string;
+  staffOrStudentId: string;
+  newPassword: string;
 }
 
 export type BackendNotificationType =
@@ -114,12 +134,41 @@ export interface HallAvailabilityResponse {
   }[];
 }
 
+export type SubscriptionTier = 'FREE' | 'CAMPUS_PRO' | 'ENTERPRISE';
+
+export interface SubscriptionResponse {
+  tier: SubscriptionTier;
+  planName: string;
+  priceLabel: string;
+  analytics: boolean;
+  prioritySupport: boolean;
+  customNotifications: boolean;
+  apiIntegrations: boolean;
+  activeHallLimit: number | null; // null = unlimited
+  monthlyBookingLimit: number | null;
+  activeHallsUsed: number;
+  monthlyBookingsUsed: number;
+  features: string[];
+}
+
+export interface PlanResponse {
+  tier: SubscriptionTier;
+  name: string;
+  priceLabel: string;
+  activeHallLimit: number | null;
+  monthlyBookingLimit: number | null;
+  selfServe: boolean;
+  features: string[];
+}
+
+export interface ReportsOverview {
+  totalRooms: number;
+  totalBookings: number;
+  pendingRequests: number;
+}
+
 export interface ReportsResponse {
-  overview: {
-    totalRooms: number;
-    totalBookings: number;
-    pendingRequests: number;
-  };
+  overview: ReportsOverview;
   mostBookedRoom: { name: string; count: number };
   peakDay: { name: string; count: number };
   utilizationRate: number;

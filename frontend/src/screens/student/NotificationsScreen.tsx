@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen, TopBar, StateView } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
@@ -17,7 +17,7 @@ const ICONS: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; co
   };
 
 export default function NotificationsScreen() {
-  const { data, loading, error, reload } = useApiData(async () =>
+  const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
     (await notificationsApi.listNotifications()).map(notificationToUi),
   );
 
@@ -48,7 +48,12 @@ export default function NotificationsScreen() {
   return (
     <>
       <TopBar variant="title" title="Notifications" />
-      <Screen scroll>
+      <Screen
+        scroll
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+        }
+      >
         <TouchableOpacity style={styles.markAll} hitSlop={8} onPress={markAllRead}>
           <Text style={styles.markAllText}>Mark all as read</Text>
         </TouchableOpacity>

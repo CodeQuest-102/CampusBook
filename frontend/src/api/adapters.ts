@@ -162,7 +162,9 @@ export function bookingToUi(b: BookingResponse): Booking {
     endTime: formatDisplayTime(b.endTime),
     purpose: b.purpose,
     status: bookingStatusFromBackend(b.status),
-    notes: b.rejectionReason ?? undefined,
+    attendance: b.attendance ?? undefined,
+    // Prefer the requester's own notes; fall back to a rejection reason.
+    notes: b.notes ?? b.rejectionReason ?? undefined,
   };
 }
 
