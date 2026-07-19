@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -16,6 +16,7 @@ import {
 } from '../../components';
 import { bookingTone } from '../../components/StatusPill';
 import { colors, radius, spacing, typography } from '../../theme';
+import { bookingsApi, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingDetails'>;
@@ -37,6 +38,31 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const [draftDate, setDraftDate] = useState(date);
   const [draftTime, setDraftTime] = useState(start);
   const [rescheduled, setRescheduled] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const cancelBooking = () => {
+    Alert.alert('Cancel booking', 'Are you sure you want to cancel this booking?', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Cancel Booking',
+        style: 'destructive',
+        onPress: async () => {
+          setCancelling(true);
+          try {
+            await bookingsApi.cancelBooking(booking.id);
+            navigation.goBack();
+          } catch (e) {
+            Alert.alert(
+              'Could not cancel',
+              e instanceof ApiError ? e.message : 'Please try again.',
+            );
+          } finally {
+            setCancelling(false);
+          }
+        },
+      },
+    ]);
+  };
 
   const openPicker = (kind: PickerKind) => {
     if (kind === 'date') setDraftDate(date);
@@ -133,7 +159,8 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
             <Button
               title="Cancel Booking"
               variant="danger"
-              onPress={() => navigation.goBack()}
+              loading={cancelling}
+              onPress={cancelBooking}
               style={{ marginTop: spacing.md }}
             />
           </>

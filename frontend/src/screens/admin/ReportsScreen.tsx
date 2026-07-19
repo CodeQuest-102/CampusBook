@@ -1,15 +1,26 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Screen, TopBar } from '../../components';
+import { Screen, TopBar, StateView } from '../../components';
 import { colors, radius, shadow, spacing, typography } from '../../theme';
-import { analytics } from '../../data/placeholder';
+import { reportsApi } from '../../api';
+import type { ReportPeriod } from '../../api/reports';
+import { useApiData } from '../../hooks/useApiData';
 
-const PERIODS = ['This Week', 'This Month', 'This Year'];
+const PERIODS: { label: string; value: ReportPeriod }[] = [
+  { label: 'This Week', value: 'week' },
+  { label: 'This Month', value: 'month' },
+  { label: 'This Year', value: 'year' },
+];
 
 export default function ReportsScreen() {
   const [periodIndex, setPeriodIndex] = useState(1);
-  const maxValue = Math.max(...analytics.bookingsOverTime.map((b) => b.value));
+  const period = PERIODS[periodIndex].value;
+
+  const { data, loading, error, reload } = useApiData(() => reportsApi.getSummary(period));
+
+  const series = data?.bookingsOverTime ?? [];
+  const maxValue = Math.max(1, ...series.map((b) => b.value));
 
   return (
     <>
@@ -20,49 +31,55 @@ export default function ReportsScreen() {
           activeOpacity={0.8}
           onPress={() => setPeriodIndex((i) => (i + 1) % PERIODS.length)}
         >
-          <Text style={styles.periodText}>{PERIODS[periodIndex]}</Text>
+          <Text style={styles.periodText}>{PERIODS[periodIndex].label}</Text>
           <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        <View style={styles.row}>
-          <StatCard
-            icon="trophy-outline"
-            label="Most Booked Room"
-            value={analytics.mostBookedRoom.name}
-            sub={`${analytics.mostBookedRoom.count} Bookings`}
-          />
-          <View style={{ width: spacing.md }} />
-          <StatCard
-            icon="flame-outline"
-            label="Peak Day"
-            value={analytics.peakDay.day}
-            sub={`${analytics.peakDay.count} Bookings`}
-          />
-        </View>
+        <StateView loading={loading} error={error} onRetry={reload} />
 
-        <View style={styles.utilCard}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.utilLabel}>Utilization Rate</Text>
-            <Text style={styles.utilValue}>{analytics.utilizationRate}%</Text>
-          </View>
-          <View style={styles.utilBarTrack}>
-            <View style={[styles.utilBarFill, { width: `${analytics.utilizationRate}%` }]} />
-          </View>
-        </View>
+        {!loading && !error && data && (
+          <>
+            <View style={styles.row}>
+              <StatCard
+                icon="trophy-outline"
+                label="Most Booked Room"
+                value={data.mostBookedRoom.name}
+                sub={`${data.mostBookedRoom.count} Bookings`}
+              />
+              <View style={{ width: spacing.md }} />
+              <StatCard
+                icon="flame-outline"
+                label="Peak Day"
+                value={data.peakDay.name}
+                sub={`${data.peakDay.count} Bookings`}
+              />
+            </View>
 
-        <Text style={styles.chartTitle}>Bookings Over Time</Text>
-        <View style={styles.chartCard}>
-          <View style={styles.chart}>
-            {analytics.bookingsOverTime.map((b) => (
-              <View key={b.label} style={styles.barCol}>
-                <View style={styles.barTrack}>
-                  <View style={[styles.bar, { height: `${(b.value / maxValue) * 100}%` }]} />
-                </View>
-                <Text style={styles.barLabel}>{b.label}</Text>
+            <View style={styles.utilCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.utilLabel}>Utilization Rate</Text>
+                <Text style={styles.utilValue}>{data.utilizationRate}%</Text>
               </View>
-            ))}
-          </View>
-        </View>
+              <View style={styles.utilBarTrack}>
+                <View style={[styles.utilBarFill, { width: `${data.utilizationRate}%` }]} />
+              </View>
+            </View>
+
+            <Text style={styles.chartTitle}>Bookings Over Time</Text>
+            <View style={styles.chartCard}>
+              <View style={styles.chart}>
+                {series.map((b, i) => (
+                  <View key={`${b.label}-${i}`} style={styles.barCol}>
+                    <View style={styles.barTrack}>
+                      <View style={[styles.bar, { height: `${(b.value / maxValue) * 100}%` }]} />
+                    </View>
+                    <Text style={styles.barLabel}>{b.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
       </Screen>
     </>
   );

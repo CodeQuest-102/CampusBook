@@ -14,7 +14,8 @@ import {
   Button,
 } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
-import { staffStats, myBookings } from '../../data/placeholder';
+import { bookingsApi, notificationsApi, bookingToUi } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
 import { useApp } from '../../navigation/AppContext';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -24,13 +25,29 @@ export default function StaffDashboard() {
   const navigation = useNavigation<Nav>();
   const { displayName } = useApp();
 
+  const { data } = useApiData(async () => {
+    const [bookings, unread] = await Promise.all([
+      bookingsApi.myBookings(),
+      notificationsApi.unreadCount().catch(() => ({ unreadCount: 0 })),
+    ]);
+    return {
+      upcoming: bookings.filter((b) => b.status === 'APPROVED' || b.status === 'PENDING').length,
+      pending: bookings.filter((b) => b.status === 'PENDING').length,
+      approved: bookings.filter((b) => b.status === 'APPROVED').length,
+      unread: unread.unreadCount,
+      recent: bookings.slice(0, 2).map(bookingToUi),
+    };
+  });
+
+  const stats = data ?? { upcoming: 0, pending: 0, approved: 0, unread: 0, recent: [] };
+
   return (
     <>
       <TopBar
         variant="greeting"
         greeting="Good Morning,"
         name={displayName}
-        notificationCount={2}
+        notificationCount={stats.unread}
         onNotifications={() => navigation.navigate('Main', { screen: 'Notifications' })}
         onProfile={() => navigation.navigate('Main', { screen: 'Profile' })}
       />
@@ -59,13 +76,13 @@ export default function StaffDashboard() {
 
         <SectionHeader title="Overview" />
         <View style={styles.statsRow}>
-          <StatTile icon="calendar" count={staffStats.upcoming} label="Upcoming" />
+          <StatTile icon="calendar" count={stats.upcoming} label="Upcoming" />
           <View style={{ width: spacing.md }} />
-          <StatTile icon="time" count={staffStats.pending} label="Pending" tone="pending" />
+          <StatTile icon="time" count={stats.pending} label="Pending" tone="pending" />
           <View style={{ width: spacing.md }} />
           <StatTile
             icon="checkmark-circle"
-            count={staffStats.approved}
+            count={stats.approved}
             label="Approved"
             tone="approved"
           />
@@ -92,7 +109,7 @@ export default function StaffDashboard() {
         </View>
 
         <SectionHeader title="Recent Bookings" actionLabel="See all" onAction={() => navigation.navigate('Main', { screen: 'Bookings' })} />
-        {myBookings.slice(0, 2).map((b) => (
+        {stats.recent.map((b) => (
           <BookingCard
             key={b.id}
             booking={b}

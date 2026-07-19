@@ -1,25 +1,38 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TopBar, StatusPill } from '../../components';
+import { Screen, TopBar, StatusPill, StateView } from '../../components';
 import { roomStatusLabel, roomTone } from '../../components/StatusPill';
 import { colors, radius, shadow, spacing, typography } from '../../theme';
-import { rooms as seedRooms, Room } from '../../data/placeholder';
+import { hallsApi, hallToRoom, ApiError } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
+import type { Room } from '../../data/placeholder';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomManagement'>;
 
 export default function RoomManagementScreen({ navigation }: Props) {
-  const [rooms, setRooms] = useState<Room[]>(seedRooms);
+  const { data, loading, error, reload } = useApiData(async () =>
+    (await hallsApi.listAllHalls()).map(hallToRoom),
+  );
 
-  const confirmDelete = (room: Room) => {
-    Alert.alert('Delete room', `Remove ${room.building} — ${room.name}?`, [
+  const rooms = data ?? [];
+
+  const confirmDisable = (room: Room) => {
+    Alert.alert('Disable room', `Disable ${room.building} — ${room.name}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete',
+        text: 'Disable',
         style: 'destructive',
-        onPress: () => setRooms((cur) => cur.filter((r) => r.id !== room.id)),
+        onPress: async () => {
+          try {
+            await hallsApi.disableHall(room.id);
+            reload();
+          } catch (e) {
+            Alert.alert('Could not disable', e instanceof ApiError ? e.message : 'Please try again.');
+          }
+        },
       },
     ]);
   };
@@ -40,39 +53,50 @@ export default function RoomManagementScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        {rooms.map((room) => (
-          <TouchableOpacity
-            key={room.id}
-            style={styles.card}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('RoomDetails', { room })}
-          >
-            <View style={styles.thumb}>
-              <Ionicons name="business" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.info}>
-              <Text style={styles.building}>{room.building}</Text>
-              <Text style={styles.name}>{room.name}</Text>
-              <Text style={styles.meta}>
-                Capacity: {room.capacity} · {room.floor}
-              </Text>
-            </View>
-            <View style={styles.right}>
-              <StatusPill label={roomStatusLabel(room.status)} tone={roomTone(room.status)} />
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  hitSlop={8}
-                  onPress={() => navigation.navigate('RoomForm', { mode: 'edit', room })}
-                >
-                  <Ionicons name="create-outline" size={19} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity hitSlop={8} onPress={() => confirmDelete(room)} style={{ marginLeft: spacing.md }}>
-                  <Ionicons name="trash-outline" size={19} color={colors.danger} />
-                </TouchableOpacity>
+        <StateView
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          empty={!loading && !error && rooms.length === 0}
+          emptyText="No rooms yet. Add one to get started."
+          emptyIcon="business-outline"
+        />
+
+        {!loading &&
+          !error &&
+          rooms.map((room) => (
+            <TouchableOpacity
+              key={room.id}
+              style={styles.card}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('RoomDetails', { room })}
+            >
+              <View style={styles.thumb}>
+                <Ionicons name="business" size={22} color={colors.primary} />
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+              <View style={styles.info}>
+                <Text style={styles.building}>{room.building}</Text>
+                <Text style={styles.name}>{room.name}</Text>
+                <Text style={styles.meta}>
+                  Capacity: {room.capacity} · {room.floor}
+                </Text>
+              </View>
+              <View style={styles.right}>
+                <StatusPill label={roomStatusLabel(room.status)} tone={roomTone(room.status)} />
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    hitSlop={8}
+                    onPress={() => navigation.navigate('RoomForm', { mode: 'edit', room })}
+                  >
+                    <Ionicons name="create-outline" size={19} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity hitSlop={8} onPress={() => confirmDisable(room)} style={{ marginLeft: spacing.md }}>
+                    <Ionicons name="trash-outline" size={19} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
       </Screen>
     </>
   );

@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Screen, TopBar } from '../../components';
+import { Screen, TopBar, StateView } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
-import { notifications as seed, NotificationType } from '../../data/placeholder';
+import { notificationsApi, notificationToUi } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
+import type { AppNotification, NotificationType } from '../../data/placeholder';
 
 const ICONS: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> =
   {
@@ -15,10 +17,33 @@ const ICONS: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; co
   };
 
 export default function NotificationsScreen() {
-  const [items, setItems] = useState(seed);
-  const markAllRead = () => setItems((cur) => cur.map((n) => ({ ...n, read: true })));
-  const markRead = (id: string) =>
+  const { data, loading, error, reload } = useApiData(async () =>
+    (await notificationsApi.listNotifications()).map(notificationToUi),
+  );
+
+  // Local copy so read-state updates feel instant.
+  const [items, setItems] = useState<AppNotification[]>([]);
+  useEffect(() => {
+    if (data) setItems(data);
+  }, [data]);
+
+  const markAllRead = async () => {
+    setItems((cur) => cur.map((n) => ({ ...n, read: true })));
+    try {
+      await notificationsApi.markAllAsRead();
+    } catch {
+      reload();
+    }
+  };
+
+  const markRead = async (id: string) => {
     setItems((cur) => cur.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await notificationsApi.markAsRead(id);
+    } catch {
+      reload();
+    }
+  };
 
   return (
     <>
@@ -28,29 +53,40 @@ export default function NotificationsScreen() {
           <Text style={styles.markAllText}>Mark all as read</Text>
         </TouchableOpacity>
 
-        {items.map((n) => {
-          const meta = ICONS[n.type];
-          return (
-            <TouchableOpacity
-              key={n.id}
-              style={styles.item}
-              activeOpacity={0.7}
-              onPress={() => markRead(n.id)}
-            >
-              <View style={[styles.icon, { backgroundColor: meta.bg }]}>
-                <Ionicons name={meta.icon} size={20} color={meta.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.title}>{n.title}</Text>
-                  <Text style={styles.time}>{n.time}</Text>
+        <StateView
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          empty={!loading && !error && items.length === 0}
+          emptyText="No notifications yet."
+          emptyIcon="notifications-outline"
+        />
+
+        {!loading &&
+          !error &&
+          items.map((n) => {
+            const meta = ICONS[n.type];
+            return (
+              <TouchableOpacity
+                key={n.id}
+                style={styles.item}
+                activeOpacity={0.7}
+                onPress={() => markRead(n.id)}
+              >
+                <View style={[styles.icon, { backgroundColor: meta.bg }]}>
+                  <Ionicons name={meta.icon} size={20} color={meta.color} />
                 </View>
-                <Text style={styles.body}>{n.body}</Text>
-              </View>
-              {!n.read && <View style={styles.unreadDot} />}
-            </TouchableOpacity>
-          );
-        })}
+                <View style={{ flex: 1 }}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.title}>{n.title}</Text>
+                    <Text style={styles.time}>{n.time}</Text>
+                  </View>
+                  <Text style={styles.body}>{n.body}</Text>
+                </View>
+                {!n.read && <View style={styles.unreadDot} />}
+              </TouchableOpacity>
+            );
+          })}
       </Screen>
     </>
   );
@@ -66,7 +102,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  itemUnread: {},
   icon: {
     width: 40,
     height: 40,

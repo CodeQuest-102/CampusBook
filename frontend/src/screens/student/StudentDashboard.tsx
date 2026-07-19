@@ -13,7 +13,8 @@ import {
   Button,
 } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
-import { studentStats } from '../../data/placeholder';
+import { bookingsApi, notificationsApi } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
 import { useApp } from '../../navigation/AppContext';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -23,13 +24,28 @@ export default function StudentDashboard() {
   const navigation = useNavigation<Nav>();
   const { displayName } = useApp();
 
+  const { data } = useApiData(async () => {
+    const [bookings, unread] = await Promise.all([
+      bookingsApi.myBookings(),
+      notificationsApi.unreadCount().catch(() => ({ unreadCount: 0 })),
+    ]);
+    return {
+      booked: bookings.filter((b) => b.status !== 'CANCELLED' && b.status !== 'REJECTED').length,
+      pending: bookings.filter((b) => b.status === 'PENDING').length,
+      approved: bookings.filter((b) => b.status === 'APPROVED').length,
+      unread: unread.unreadCount,
+    };
+  });
+
+  const stats = data ?? { booked: 0, pending: 0, approved: 0, unread: 0 };
+
   return (
     <>
       <TopBar
         variant="greeting"
         greeting="Good Morning,"
         name={displayName}
-        notificationCount={2}
+        notificationCount={stats.unread}
         onNotifications={() => navigation.navigate('Main', { screen: 'Notifications' })}
         onProfile={() => navigation.navigate('Main', { screen: 'Profile' })}
       />
@@ -60,13 +76,13 @@ export default function StudentDashboard() {
 
         <SectionHeader title="Quick Stats" />
         <View style={styles.statsRow}>
-          <StatTile icon="bookmark" count={studentStats.booked} label="Booked" />
+          <StatTile icon="bookmark" count={stats.booked} label="Booked" />
           <View style={{ width: spacing.md }} />
-          <StatTile icon="time" count={studentStats.pending} label="Pending" tone="pending" />
+          <StatTile icon="time" count={stats.pending} label="Pending" tone="pending" />
           <View style={{ width: spacing.md }} />
           <StatTile
             icon="checkmark-circle"
-            count={studentStats.approved}
+            count={stats.approved}
             label="Approved"
             tone="approved"
           />

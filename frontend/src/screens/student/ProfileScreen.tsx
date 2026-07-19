@@ -21,7 +21,7 @@ const ROWS: { key: RowKey; icon: keyof typeof Ionicons.glyphMap; label: string }
 
 export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
-  const { displayName, role, profile } = useApp();
+  const { displayName, role, profile, signOut } = useApp();
   const roleLabel =
     role === 'staff'
       ? `${profile.department} · Staff`
@@ -83,7 +83,7 @@ export default function ProfileScreen() {
         <TouchableOpacity
           style={styles.logout}
           activeOpacity={0.7}
-          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
+          onPress={() => signOut()}
         >
           <Ionicons name="log-out-outline" size={20} color={colors.danger} />
           <Text style={styles.logoutText}>Logout</Text>

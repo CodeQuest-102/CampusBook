@@ -4,7 +4,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen, TopBar } from '../../components';
 import { bookingTone } from '../../components/StatusPill';
 import { colors, fontWeight, radius, spacing, typography } from '../../theme';
-import { daySchedule } from '../../data/placeholder';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DaySchedule'>;
@@ -14,28 +13,17 @@ const HOURS = Array.from({ length: 11 }, (_, i) => 8 + i);
 const fmt = (h: number) => `${((h + 11) % 12) + 1}:00 ${h < 12 ? 'AM' : 'PM'}`;
 
 export default function DayScheduleScreen({ route, navigation }: Props) {
-  const { date } = route.params;
+  const { date, entries } = route.params;
 
   return (
     <>
       <TopBar variant="title" title={date} onBack={() => navigation.goBack()} />
       <Screen scroll>
-        <View style={styles.dateStrip}>
-          {[
-            { d: 15, w: 'Fri' },
-            { d: 16, w: 'Sat', active: true },
-            { d: 17, w: 'Sun' },
-          ].map((x) => (
-            <View key={x.d} style={[styles.dateChip, x.active && styles.dateChipActive]}>
-              <Text style={[styles.dateNum, x.active && styles.dateOnActive]}>{x.d}</Text>
-              <Text style={[styles.dateW, x.active && styles.dateOnActive]}>{x.w}</Text>
-            </View>
-          ))}
-        </View>
+        {entries.length === 0 && <Text style={styles.empty}>No bookings on this day.</Text>}
 
         <View style={styles.rail}>
           {HOURS.map((h) => {
-            const entry = daySchedule.find((e) => e.startTime === fmt(h));
+            const entry = entries.find((e) => e.startTime === fmt(h));
             const tone = entry ? bookingTone(entry.status) : 'neutral';
             const barColor =
               tone === 'available'
@@ -67,22 +55,8 @@ export default function DayScheduleScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  dateStrip: { flexDirection: 'row', justifyContent: 'center', marginVertical: spacing.lg },
-  dateChip: {
-    width: 56,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    marginHorizontal: spacing.sm,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  dateNum: { ...typography.title, color: colors.text },
-  dateW: { ...typography.caption, marginTop: 2 },
-  dateOnActive: { color: colors.white },
-  rail: { marginTop: spacing.sm },
+  empty: { textAlign: 'center', color: colors.textTertiary, marginTop: spacing.lg },
+  rail: { marginTop: spacing.lg },
   hourRow: { flexDirection: 'row', minHeight: 54 },
   hourLabel: { width: 64, ...typography.caption, paddingTop: 2 },
   hourLineWrap: { flex: 1, justifyContent: 'flex-start' },

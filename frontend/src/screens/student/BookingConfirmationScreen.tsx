@@ -9,7 +9,7 @@ import type { RootStackParamList } from '../../navigation/types';
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingConfirmation'>;
 
 export default function BookingConfirmationScreen({ route, navigation }: Props) {
-  const { room } = route.params;
+  const { room, dateLabel, timeLabel, purpose } = route.params;
 
   return (
     <Screen scroll edges={['top', 'bottom']}>
@@ -32,9 +32,9 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
           </View>
         </View>
         <View style={styles.divider} />
-        <Row icon="calendar-outline" text="15 May 2026" />
-        <Row icon="time-outline" text="10:00 AM — 12:00 PM" />
-        <Row icon="document-text-outline" text="Department Meeting" />
+        <Row icon="calendar-outline" text={dateLabel} />
+        <Row icon="time-outline" text={timeLabel} />
+        <Row icon="document-text-outline" text={purpose} />
       </View>
 
       <Text style={styles.note}>

@@ -1,41 +1,76 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Screen, TopBar } from '../../components';
+import { Screen, TopBar, StateView } from '../../components';
 import { bookingTone } from '../../components/StatusPill';
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
-import { daySchedule } from '../../data/placeholder';
+import { bookingsApi, bookingToSchedule } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
+import type { ScheduleEntry } from '../../data/placeholder';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-// A couple of months so the prev/next arrows have somewhere to go (mock data).
-const MONTHS = [
-  { label: 'April 2026', firstWeekday: 3, days: 30, booked: [8, 22] },
-  { label: 'May 2026', firstWeekday: 5, days: 31, booked: [16, 20] },
-  { label: 'June 2026', firstWeekday: 1, days: 30, booked: [3] },
+const MONTHS_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const DEFAULT_MONTH = 1; // May
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const keyOf = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
 export default function CalendarScreen() {
   const navigation = useNavigation<Nav>();
-  const [monthIndex, setMonthIndex] = useState(DEFAULT_MONTH);
-  const [selected, setSelected] = useState(16);
+  const today = new Date();
+  const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
 
-  const month = MONTHS[monthIndex];
-  const goToday = () => {
-    setMonthIndex(DEFAULT_MONTH);
-    setSelected(16);
+  const { data, loading, error, reload } = useApiData(async () => {
+    const bookings = await bookingsApi.myBookings();
+    // Group schedule entries by day key.
+    const byDay: Record<string, ScheduleEntry[]> = {};
+    for (const b of bookings) {
+      const [datePart] = b.startTime.split('T');
+      (byDay[datePart] ||= []).push(bookingToSchedule(b));
+    }
+    return byDay;
+  });
+
+  const byDay = data ?? {};
+
+  const { cells, bookedDays } = useMemo(() => {
+    const firstWeekday = new Date(cursor.year, cursor.month, 1).getDay();
+    const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
+    const cells: (number | null)[] = [
+      ...Array(firstWeekday).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ];
+    const bookedDays = new Set<number>();
+    for (let d = 1; d <= daysInMonth; d++) {
+      if (byDay[keyOf(cursor.year, cursor.month, d)]?.length) bookedDays.add(d);
+    }
+    return { cells, bookedDays };
+  }, [cursor, byDay]);
+
+  const selectedKey = keyOf(cursor.year, cursor.month, selectedDay);
+  const selectedEntries = byDay[selectedKey] ?? [];
+  const monthLabel = `${MONTHS_FULL[cursor.month]} ${cursor.year}`;
+
+  const shiftMonth = (delta: number) => {
+    setCursor((c) => {
+      const m = c.month + delta;
+      return { year: c.year + Math.floor(m / 12), month: ((m % 12) + 12) % 12 };
+    });
+    setSelectedDay(1);
   };
 
-  const cells: (number | null)[] = [
-    ...Array(month.firstWeekday).fill(null),
-    ...Array.from({ length: month.days }, (_, i) => i + 1),
-  ];
+  const goToday = () => {
+    setCursor({ year: today.getFullYear(), month: today.getMonth() });
+    setSelectedDay(today.getDate());
+  };
 
   return (
     <>
@@ -43,28 +78,12 @@ export default function CalendarScreen() {
       <Screen scroll>
         <View style={styles.calendar}>
           <View style={styles.monthRow}>
-            <TouchableOpacity
-              hitSlop={8}
-              disabled={monthIndex === 0}
-              onPress={() => setMonthIndex((m) => Math.max(0, m - 1))}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={20}
-                color={monthIndex === 0 ? colors.textTertiary : colors.text}
-              />
+            <TouchableOpacity hitSlop={8} onPress={() => shiftMonth(-1)}>
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.month}>{month.label}</Text>
-            <TouchableOpacity
-              hitSlop={8}
-              disabled={monthIndex === MONTHS.length - 1}
-              onPress={() => setMonthIndex((m) => Math.min(MONTHS.length - 1, m + 1))}
-            >
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={monthIndex === MONTHS.length - 1 ? colors.textTertiary : colors.text}
-              />
+            <Text style={styles.month}>{monthLabel}</Text>
+            <TouchableOpacity hitSlop={8} onPress={() => shiftMonth(1)}>
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -79,13 +98,13 @@ export default function CalendarScreen() {
           <View style={styles.grid}>
             {cells.map((day, i) => {
               if (day === null) return <View key={`e${i}`} style={styles.cell} />;
-              const isSelected = day === selected;
-              const isBooked = month.booked.includes(day);
+              const isSelected = day === selectedDay;
+              const isBooked = bookedDays.has(day);
               return (
                 <TouchableOpacity
                   key={day}
                   style={styles.cell}
-                  onPress={() => setSelected(day)}
+                  onPress={() => setSelectedDay(day)}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.dayCircle, isSelected && styles.dayCircleActive]}>
@@ -99,11 +118,18 @@ export default function CalendarScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>
-          {selected} {month.label}
+          {selectedDay} {monthLabel}
         </Text>
 
-        {monthIndex === DEFAULT_MONTH && selected === 16 ? (
-          daySchedule.map((e) => {
+        <StateView loading={loading} error={error} onRetry={reload} />
+
+        {!loading && !error && selectedEntries.length === 0 && (
+          <Text style={styles.empty}>No bookings on this day.</Text>
+        )}
+
+        {!loading &&
+          !error &&
+          selectedEntries.map((e) => {
             const tone = bookingTone(e.status);
             const barColor =
               tone === 'available' ? colors.success : tone === 'pending' ? colors.warning : colors.danger;
@@ -112,7 +138,12 @@ export default function CalendarScreen() {
                 key={e.id}
                 style={styles.event}
                 activeOpacity={0.85}
-                onPress={() => navigation.navigate('DaySchedule', { date: '16 May 2026' })}
+                onPress={() =>
+                  navigation.navigate('DaySchedule', {
+                    date: `${selectedDay} ${monthLabel}`,
+                    entries: selectedEntries,
+                  })
+                }
               >
                 <View style={[styles.eventBar, { backgroundColor: barColor }]} />
                 <View style={{ flex: 1 }}>
@@ -124,10 +155,7 @@ export default function CalendarScreen() {
                 </View>
               </TouchableOpacity>
             );
-          })
-        ) : (
-          <Text style={styles.empty}>No bookings on this day.</Text>
-        )}
+          })}
       </Screen>
 
       <TouchableOpacity

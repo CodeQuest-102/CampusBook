@@ -12,20 +12,33 @@ import {
   PickerSheet,
   formatDate,
 } from '../../components';
-import { colors, radius, spacing, typography } from '../../theme';
+import { colors, fontWeight, radius, spacing, typography } from '../../theme';
+import { bookingsApi, toLocalDateTimeIso, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingForm'>;
 
 type PickerKind = 'date' | 'start' | 'end';
 
+/** Default to tomorrow — the backend rejects bookings that start in the past. */
+function tomorrow(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export default function BookingFormScreen({ route, navigation }: Props) {
   const { room } = route.params;
 
-  const [date, setDate] = useState(() => new Date(2026, 4, 15));
+  const [date, setDate] = useState(tomorrow);
   const [start, setStart] = useState('10:00 AM');
   const [end, setEnd] = useState('12:00 PM');
+  const [purpose, setPurpose] = useState('');
   const [picker, setPicker] = useState<PickerKind | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Draft values so the sheet can be confirmed with "Done" or dismissed to cancel.
   const [draftDate, setDraftDate] = useState(date);
@@ -46,6 +59,33 @@ export default function BookingFormScreen({ route, navigation }: Props) {
 
   const sheetTitle =
     picker === 'date' ? 'Select Date' : picker === 'start' ? 'Select Start Time' : 'Select End Time';
+
+  const submit = async () => {
+    if (!purpose.trim()) {
+      setFormError('Please enter a purpose / event title.');
+      return;
+    }
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await bookingsApi.createBooking({
+        hallId: Number(room.id),
+        purpose: purpose.trim(),
+        startTime: toLocalDateTimeIso(date, start),
+        endTime: toLocalDateTimeIso(date, end),
+      });
+      navigation.replace('BookingConfirmation', {
+        room,
+        dateLabel: formatDate(date),
+        timeLabel: `${start} — ${end}`,
+        purpose: purpose.trim(),
+      });
+    } catch (e) {
+      setFormError(e instanceof ApiError ? e.message : 'Could not submit your request.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -89,8 +129,12 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           />
         </View>
 
-        <TextField label="Purpose / Event Title" placeholder="Department Meeting" />
-        <TextField label="Expected Attendance" placeholder="80" keyboardType="number-pad" />
+        <TextField
+          label="Purpose / Event Title"
+          placeholder="Department Meeting"
+          value={purpose}
+          onChangeText={setPurpose}
+        />
         <TextField
           label="Additional Notes (Optional)"
           placeholder="Any other notes..."
@@ -98,13 +142,12 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           numberOfLines={3}
           containerStyle={{ marginBottom: spacing.sm }}
         />
+
+        {formError && <Text style={styles.error}>{formError}</Text>}
       </Screen>
 
       <View style={styles.footer}>
-        <Button
-          title="Submit Request"
-          onPress={() => navigation.replace('BookingConfirmation', { room })}
-        />
+        <Button title="Submit Request" onPress={submit} loading={submitting} />
       </View>
 
       <PickerSheet
@@ -146,6 +189,12 @@ const styles = StyleSheet.create({
   roomName: { ...typography.title, fontSize: 15 },
   roomMeta: { ...typography.caption, marginTop: 2 },
   timeRow: { flexDirection: 'row' },
+  error: {
+    color: colors.danger,
+    fontSize: 13,
+    marginTop: spacing.md,
+    fontWeight: fontWeight.medium,
+  },
   footer: {
     padding: spacing.xl,
     borderTopWidth: 1,

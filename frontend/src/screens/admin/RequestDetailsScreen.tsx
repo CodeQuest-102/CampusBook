@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen, TopBar, Avatar, Button, StatusPill, DetailRow, SuccessOverlay } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
+import { bookingsApi, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RequestDetails'>;
@@ -10,6 +11,23 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RequestDetails'>;
 export default function RequestDetailsScreen({ route, navigation }: Props) {
   const { request } = route.params;
   const [result, setResult] = useState<'approved' | 'rejected' | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const act = async (kind: 'approved' | 'rejected') => {
+    setBusy(true);
+    try {
+      if (kind === 'approved') await bookingsApi.approveBooking(request.id);
+      else await bookingsApi.rejectBooking(request.id);
+      setResult(kind);
+    } catch (e) {
+      Alert.alert(
+        kind === 'approved' ? 'Could not approve' : 'Could not reject',
+        e instanceof ApiError ? e.message : 'Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <>
@@ -33,9 +51,6 @@ export default function RequestDetailsScreen({ route, navigation }: Props) {
           <DetailRow label="Room" value={`${request.building}\n${request.roomName}`} />
           <DetailRow label="Date & Time" value={`${request.date} · ${request.startTime} — ${request.endTime}`} />
           <DetailRow label="Purpose / Event Title" value={request.purpose} />
-          {request.attendance != null && (
-            <DetailRow label="Expected Attendance" value={`${request.attendance}`} />
-          )}
           {request.notes && <DetailRow label="Additional Notes" value={request.notes} />}
         </View>
       </Screen>
@@ -44,14 +59,16 @@ export default function RequestDetailsScreen({ route, navigation }: Props) {
         <Button
           title="Reject"
           variant="danger"
-          onPress={() => setResult('rejected')}
+          loading={busy}
+          onPress={() => act('rejected')}
           style={styles.footerBtn}
         />
         <View style={{ width: spacing.md }} />
         <Button
           title="Approve"
           variant="success"
-          onPress={() => setResult('approved')}
+          loading={busy}
+          onPress={() => act('approved')}
           style={styles.footerBtn}
         />
       </View>

@@ -10,7 +10,8 @@ import {
   BookingCard,
 } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
-import { adminOverview, myBookings } from '../../data/placeholder';
+import { reportsApi, bookingsApi, bookingToUi } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
 import { useApp } from '../../navigation/AppContext';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -20,13 +21,27 @@ export default function AdminDashboard() {
   const navigation = useNavigation<Nav>();
   const { displayName } = useApp();
 
+  const { data } = useApiData(async () => {
+    const [summary, bookings] = await Promise.all([
+      reportsApi.getSummary('month'),
+      bookingsApi.allBookings().catch(() => []),
+    ]);
+    return {
+      overview: summary.overview,
+      recent: bookings.slice(0, 2).map(bookingToUi),
+    };
+  });
+
+  const overview = data?.overview ?? { totalRooms: 0, totalBookings: 0, pendingRequests: 0 };
+  const recent = data?.recent ?? [];
+
   return (
     <>
       <TopBar
         variant="greeting"
         greeting="Good Morning,"
         name={displayName}
-        notificationCount={3}
+        notificationCount={overview.pendingRequests}
         onNotifications={() => navigation.navigate('Main', { screen: 'Requests' })}
         onProfile={() => navigation.navigate('Main', { screen: 'Profile' })}
       />
@@ -34,11 +49,11 @@ export default function AdminDashboard() {
         <View style={styles.overview}>
           <Text style={styles.overviewTitle}>System Overview</Text>
           <View style={styles.overviewRow}>
-            <OverviewStat count={adminOverview.totalRooms} label="Total Rooms" />
+            <OverviewStat count={overview.totalRooms} label="Total Rooms" />
             <View style={styles.vline} />
-            <OverviewStat count={adminOverview.totalBookings} label="Total Bookings" />
+            <OverviewStat count={overview.totalBookings} label="Total Bookings" />
             <View style={styles.vline} />
-            <OverviewStat count={adminOverview.pendingRequests} label="Pending Requests" />
+            <OverviewStat count={overview.pendingRequests} label="Pending Requests" />
           </View>
         </View>
 
@@ -67,7 +82,7 @@ export default function AdminDashboard() {
           actionLabel="See all"
           onAction={() => navigation.navigate('Main', { screen: 'Requests' })}
         />
-        {myBookings.slice(0, 2).map((b) => (
+        {recent.map((b) => (
           <BookingCard
             key={b.id}
             booking={b}

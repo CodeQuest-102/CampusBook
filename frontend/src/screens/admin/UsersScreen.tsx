@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TopBar, Avatar, StatusPill, SearchBar } from '../../components';
+import { Screen, TopBar, Avatar, StatusPill, SearchBar, StateView } from '../../components';
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
-import { directoryUsers } from '../../data/placeholder';
+import { usersApi, userToDirectory } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Users'>;
@@ -14,8 +14,13 @@ const TABS = ['All', 'Students', 'Staff', 'Admins'];
 export default function UsersScreen({ navigation }: Props) {
   const [tab, setTab] = useState('All');
 
-  const filtered = directoryUsers.filter((u) =>
-    tab === 'All' ? true : u.role === tab.slice(0, -1)
+  const { data, loading, error, reload } = useApiData(async () =>
+    (await usersApi.listUsers()).map(userToDirectory),
+  );
+
+  const users = data ?? [];
+  const filtered = users.filter((u) =>
+    tab === 'All' ? true : u.role === tab.slice(0, -1),
   );
 
   return (
@@ -40,24 +45,35 @@ export default function UsersScreen({ navigation }: Props) {
           })}
         </View>
 
-        <View style={{ marginTop: spacing.lg }}>
-          {filtered.map((u) => (
-            <View key={u.id} style={styles.card}>
-              <Avatar name={u.name} size={44} color={u.avatarColor} />
-              <View style={styles.info}>
-                <Text style={styles.name}>{u.name}</Text>
-                <Text style={styles.email} numberOfLines={1}>
-                  {u.email}
-                </Text>
-                <Text style={styles.dept}>{u.department}</Text>
+        <StateView
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          empty={!loading && !error && filtered.length === 0}
+          emptyText="No users found."
+          emptyIcon="people-outline"
+        />
+
+        {!loading && !error && (
+          <View style={{ marginTop: spacing.lg }}>
+            {filtered.map((u) => (
+              <View key={u.id} style={styles.card}>
+                <Avatar name={u.name} size={44} color={u.avatarColor} />
+                <View style={styles.info}>
+                  <Text style={styles.name}>{u.name}</Text>
+                  <Text style={styles.email} numberOfLines={1}>
+                    {u.email}
+                  </Text>
+                  <Text style={styles.dept}>{u.department}</Text>
+                </View>
+                <StatusPill
+                  label={u.role}
+                  tone={u.role === 'Admin' ? 'neutral' : u.role === 'Staff' ? 'available' : 'pending'}
+                />
               </View>
-              <StatusPill
-                label={u.role}
-                tone={u.role === 'Admin' ? 'neutral' : u.role === 'Staff' ? 'available' : 'pending'}
-              />
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </Screen>
     </>
   );

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Screen, TopBar, BookingCard } from '../../components';
+import { Screen, TopBar, BookingCard, StateView } from '../../components';
 import { colors, fontWeight, radius, spacing } from '../../theme';
-import { myBookings } from '../../data/placeholder';
+import { bookingsApi, bookingToUi } from '../../api';
+import { useApiData } from '../../hooks/useApiData';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -14,8 +15,13 @@ export default function MyBookingsScreen() {
   const navigation = useNavigation<Nav>();
   const [tab, setTab] = useState<(typeof TABS)[number]>('All');
 
-  const filtered = myBookings.filter((b) =>
-    tab === 'All' ? true : b.status === tab.toLowerCase()
+  const { data, loading, error, reload } = useApiData(async () =>
+    (await bookingsApi.myBookings()).map(bookingToUi),
+  );
+
+  const bookings = data ?? [];
+  const filtered = bookings.filter((b) =>
+    tab === 'All' ? true : b.status === tab.toLowerCase(),
   );
 
   return (
@@ -38,16 +44,26 @@ export default function MyBookingsScreen() {
           })}
         </View>
 
-        <View style={{ marginTop: spacing.lg }}>
-          {filtered.map((b) => (
-            <BookingCard
-              key={b.id}
-              booking={b}
-              onPress={() => navigation.navigate('BookingDetails', { booking: b })}
-            />
-          ))}
-          {filtered.length === 0 && <Text style={styles.empty}>No bookings here yet.</Text>}
-        </View>
+        <StateView
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          empty={!loading && !error && filtered.length === 0}
+          emptyText="No bookings here yet."
+          emptyIcon="bookmark-outline"
+        />
+
+        {!loading && !error && (
+          <View style={{ marginTop: spacing.lg }}>
+            {filtered.map((b) => (
+              <BookingCard
+                key={b.id}
+                booking={b}
+                onPress={() => navigation.navigate('BookingDetails', { booking: b })}
+              />
+            ))}
+          </View>
+        )}
       </Screen>
     </>
   );
@@ -67,5 +83,4 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   tabText: { color: colors.textSecondary, fontWeight: fontWeight.medium, fontSize: 12 },
   tabTextActive: { color: colors.white },
-  empty: { textAlign: 'center', color: colors.textTertiary, marginTop: spacing.huge },
 });

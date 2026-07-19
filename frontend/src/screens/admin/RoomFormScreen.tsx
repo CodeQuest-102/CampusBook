@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen, TopBar, TextField, Button } from '../../components';
-import { colors, radius, spacing, typography } from '../../theme';
+import { colors, fontWeight, radius, spacing, typography } from '../../theme';
+import { hallsApi, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomForm'>;
 
-const ALL_FACILITIES = ['Projector', 'A/C', 'Whiteboard', 'Stage', 'Sound System'];
+// These three map directly to the backend Hall boolean flags.
+const ALL_FACILITIES = ['Projector', 'A/C', 'Microphone'];
 const STATUSES: { key: string; label: string }[] = [
   { key: 'available', label: 'Available' },
-  { key: 'in_use', label: 'In Use' },
   { key: 'maintenance', label: 'Maintenance' },
 ];
 
@@ -19,11 +20,43 @@ export default function RoomFormScreen({ route, navigation }: Props) {
   const { mode, room } = route.params;
   const editing = mode === 'edit';
 
+  const [building, setBuilding] = useState(room?.building ?? '');
+  const [roomCode, setRoomCode] = useState((room?.name ?? '').replace(/^Room\s+/i, ''));
+  const [capacity, setCapacity] = useState(room ? String(room.capacity) : '');
   const [facilities, setFacilities] = useState<string[]>(room?.facilities ?? ['Projector', 'A/C']);
-  const [status, setStatus] = useState<string>(room?.status ?? 'available');
+  const [status, setStatus] = useState<string>(
+    room ? (room.status === 'maintenance' ? 'maintenance' : 'available') : 'available',
+  );
+  const [saving, setSaving] = useState(false);
 
   const toggle = (f: string) =>
     setFacilities((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]));
+
+  const save = async () => {
+    if (!building.trim() || !roomCode.trim() || !capacity.trim()) {
+      Alert.alert('Missing details', 'Building, room code and capacity are required.');
+      return;
+    }
+    const payload = {
+      block: building.trim(),
+      roomCode: roomCode.trim(),
+      capacity: Number(capacity),
+      hasProjector: facilities.includes('Projector'),
+      hasAC: facilities.includes('A/C'),
+      hasMicrophone: facilities.includes('Microphone'),
+      active: status !== 'maintenance',
+    };
+    setSaving(true);
+    try {
+      if (editing && room) await hallsApi.updateHall(room.id, payload);
+      else await hallsApi.createHall(payload);
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert('Could not save', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
@@ -33,13 +66,19 @@ export default function RoomFormScreen({ route, navigation }: Props) {
         onBack={() => navigation.goBack()}
       />
       <Screen scroll>
-        <TextField label="Building" placeholder="Engineering Block A" defaultValue={room?.building} />
-        <TextField label="Room Name" placeholder="Lecture Room A101" defaultValue={room?.name} />
+        <TextField
+          label="Building / Block"
+          placeholder="Science Complex Block"
+          value={building}
+          onChangeText={setBuilding}
+        />
         <View style={styles.row}>
           <TextField
-            label="Floor"
-            placeholder="1st Floor"
-            defaultValue={room?.floor}
+            label="Room Code"
+            placeholder="GF1"
+            autoCapitalize="characters"
+            value={roomCode}
+            onChangeText={setRoomCode}
             containerStyle={styles.flex}
           />
           <View style={{ width: spacing.md }} />
@@ -47,7 +86,8 @@ export default function RoomFormScreen({ route, navigation }: Props) {
             label="Capacity"
             placeholder="120"
             keyboardType="number-pad"
-            defaultValue={room ? String(room.capacity) : undefined}
+            value={capacity}
+            onChangeText={setCapacity}
             containerStyle={styles.flex}
           />
         </View>
@@ -92,7 +132,8 @@ export default function RoomFormScreen({ route, navigation }: Props) {
         <Button
           title={editing ? 'Save Changes' : 'Add Room'}
           icon={editing ? 'save-outline' : 'add'}
-          onPress={() => navigation.goBack()}
+          loading={saving}
+          onPress={save}
         />
       </View>
     </>
@@ -102,7 +143,7 @@ export default function RoomFormScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   flex: { flex: 1 },
-  label: { ...typography.label, marginBottom: spacing.md, marginTop: spacing.xs },
+  label: { ...typography.label, marginBottom: spacing.md, marginTop: spacing.xs, fontWeight: fontWeight.semibold },
   chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.lg },
   chip: {
     flexDirection: 'row',
