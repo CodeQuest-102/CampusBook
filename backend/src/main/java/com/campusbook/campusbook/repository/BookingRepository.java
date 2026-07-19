@@ -35,6 +35,20 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     );
 
     @Query("""
+    SELECT b FROM Booking b
+    WHERE b.hall.id = :hallId
+    AND b.status = 'APPROVED'
+    AND b.startTime < :dayEnd
+    AND b.endTime > :dayStart
+    ORDER BY b.startTime ASC
+    """)
+    List<Booking> findApprovedBookingsForHallOnDate(
+    @Param("hallId") Long hallId,
+    @Param("dayStart") LocalDateTime dayStart,
+    @Param("dayEnd") LocalDateTime dayEnd
+    );
+
+    @Query("""
     SELECT COUNT(b) FROM Booking b
     WHERE b.hall.institution.id = :institutionId
     AND b.startTime BETWEEN :monthStart AND :monthEnd
@@ -44,4 +58,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Param("monthStart") LocalDateTime monthStart,
     @Param("monthEnd") LocalDateTime monthEnd
 );
+
+
 }

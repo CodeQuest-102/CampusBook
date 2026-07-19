@@ -7,11 +7,14 @@ import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.service.HallService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.campusbook.campusbook.dto.HallAvailabilityResponse;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -75,5 +78,13 @@ public class HallController {
         hall.setHasMicrophone(request.isHasMicrophone());
         hall.setActive(request.isActive());
         return hall;
+        
+    }
+
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<HallAvailabilityResponse> getHallAvailability(
+            @PathVariable Long id,
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(hallService.getAvailability(id, date));
     }
 }

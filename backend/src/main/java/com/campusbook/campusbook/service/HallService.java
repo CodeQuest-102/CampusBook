@@ -7,6 +7,13 @@ import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.HallRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.campusbook.campusbook.dto.HallAvailabilityResponse;
+import com.campusbook.campusbook.entity.Booking;
+import com.campusbook.campusbook.repository.BookingRepository;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 import java.util.List;
 
@@ -17,6 +24,8 @@ public class HallService {
 
     @Autowired
     private HallRepository hallRepository;
+    @Autowired
+    private BookingRepository bookingRepository;
 
     public Hall createHall(Hall hall, User admin) {
         hallRepository.findByRoomCode(hall.getRoomCode()).ifPresent(existing -> {
@@ -41,6 +50,26 @@ public class HallService {
         return hallRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
     }
+
+    public HallAvailabilityResponse getAvailability(Long hallId, LocalDate date) {
+    // confirms the hall exists — reuses your existing not-found handling
+    getHallById(hallId);
+
+    LocalDateTime dayStart = date.atStartOfDay();
+    LocalDateTime dayEnd = dayStart.plusDays(1);
+
+    List<Booking> bookings = bookingRepository.findApprovedBookingsForHallOnDate(hallId, dayStart, dayEnd);
+
+    List<HallAvailabilityResponse.OccupiedSlot> occupiedSlots = bookings.stream()
+            .map(b -> new HallAvailabilityResponse.OccupiedSlot(
+                    b.getStartTime(),
+                    b.getEndTime(),
+                    b.getUser().getFullName()
+            ))
+            .collect(Collectors.toList());
+
+    return new HallAvailabilityResponse(hallId, date, occupiedSlots);
+}
 
     public Hall getHallByRoomCode(String roomCode) {
         return hallRepository.findByRoomCode(roomCode)
