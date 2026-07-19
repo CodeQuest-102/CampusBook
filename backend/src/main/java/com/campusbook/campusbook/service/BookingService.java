@@ -5,6 +5,7 @@ import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingStatus;
+import com.campusbook.campusbook.enums.NotificationType;
 import com.campusbook.campusbook.enums.SubscriptionTier;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingRepository;
@@ -26,6 +27,9 @@ public class BookingService {
 
     @Autowired
     private HallRepository hallRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     public Booking createBooking(Booking booking) {
         validateBookingWindow(booking.getStartTime(), booking.getEndTime());
@@ -52,7 +56,17 @@ public class BookingService {
 
         booking.setHall(hall);
         booking.setStatus(BookingStatus.PENDING);
-        return bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+
+        notificationService.notifyInstitutionAdmins(
+            hall.getInstitution().getId(),
+            NotificationType.NEW_BOOKING_REQUEST,
+            "New booking request",
+            saved.getUser().getFullName() + " requested " + hall.getBlock() + " " + hall.getRoomCode() + " for " + saved.getPurpose(),
+            saved.getId()
+        );
+
+        return saved;
     }
 
     public Booking approveBooking(Long bookingId, User admin) {
@@ -71,7 +85,17 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.APPROVED);
         booking.setApprovedBy(admin);
-        return bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+
+        notificationService.notifyUser(
+            saved.getUser(),
+            NotificationType.BOOKING_APPROVED,
+            "Booking approved",
+            "Your booking for " + saved.getHall().getBlock() + " " + saved.getHall().getRoomCode() + " was approved",
+            saved.getId()
+        );
+
+        return saved;
     }
 
     public Booking rejectBooking(Long bookingId, User admin, String reason) {
@@ -79,7 +103,18 @@ public class BookingService {
         booking.setStatus(BookingStatus.REJECTED);
         booking.setApprovedBy(admin);
         booking.setRejectionReason(reason);
-        return bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+
+        notificationService.notifyUser(
+            saved.getUser(),
+            NotificationType.BOOKING_REJECTED,
+            "Booking rejected",
+            "Your booking for " + saved.getHall().getBlock() + " " + saved.getHall().getRoomCode() +
+                (reason != null ? " was rejected: " + reason : " was rejected"),
+            saved.getId()
+        );
+
+        return saved;
     }
 
     public Booking cancelBooking(Long bookingId, User actor) {
@@ -96,7 +131,27 @@ public class BookingService {
         }
 
         booking.setStatus(BookingStatus.CANCELLED);
-        return bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+
+        if (isAdmin && !ownsBooking) {
+            notificationService.notifyUser(
+                saved.getUser(),
+                NotificationType.BOOKING_CANCELLED,
+                "Booking cancelled",
+                "Your booking for " + saved.getHall().getBlock() + " " + saved.getHall().getRoomCode() + " was cancelled by an admin",
+                saved.getId()
+            );
+        } else {
+            notificationService.notifyInstitutionAdmins(
+                saved.getHall().getInstitution().getId(),
+                NotificationType.BOOKING_CANCELLED,
+                "Booking cancelled",
+                saved.getUser().getFullName() + " cancelled their booking for " + saved.getHall().getBlock() + " " + saved.getHall().getRoomCode(),
+                saved.getId()
+            );
+        }
+
+        return saved;
     }
 
     public Booking getBookingById(Long id) {
