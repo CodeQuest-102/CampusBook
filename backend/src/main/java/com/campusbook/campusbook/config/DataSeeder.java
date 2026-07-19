@@ -54,6 +54,32 @@ public class DataSeeder {
                 admin.setInstitution(knust);
                 userRepository.save(admin);
             }
+
+            if (!userRepository.existsByEmail("lecturer@campusbook.local")
+                    && !userRepository.existsByStaffOrStudentId("STF-DEMO-01")) {
+                User lecturer = new User();
+                lecturer.setFullName("Dr. Kwaku Mensah");
+                lecturer.setEmail("lecturer@campusbook.local");
+                lecturer.setStaffOrStudentId("STF-DEMO-01");
+                lecturer.setPassword(passwordEncoder.encode("lecturer12345"));
+                lecturer.setRole(Role.LECTURER);
+                lecturer.setDepartment("Computer Science");
+                lecturer.setInstitution(knust);
+                userRepository.save(lecturer);
+            }
+
+            if (!userRepository.existsByEmail("student@campusbook.local")
+                    && !userRepository.existsByStaffOrStudentId("STU-DEMO-01")) {
+                User student = new User();
+                student.setFullName("Abubakar Sadiq");
+                student.setEmail("student@campusbook.local");
+                student.setStaffOrStudentId("STU-DEMO-01");
+                student.setPassword(passwordEncoder.encode("student12345"));
+                student.setRole(Role.STUDENT_LEADER);
+                student.setDepartment("Computer Science");
+                student.setInstitution(knust);
+                userRepository.save(student);
+            }
         };
     }
 

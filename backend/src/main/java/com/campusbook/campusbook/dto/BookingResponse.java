@@ -16,6 +16,8 @@ public class BookingResponse {
     private String block;
     private Long userId;
     private String userFullName;
+    private String userRole;
+    private String userDepartment;
     private String purpose;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
@@ -32,6 +34,8 @@ public class BookingResponse {
                 booking.getHall().getBlock(),
                 booking.getUser().getId(),
                 booking.getUser().getFullName(),
+                booking.getUser().getRole() == null ? null : booking.getUser().getRole().name(),
+                booking.getUser().getDepartment(),
                 booking.getPurpose(),
                 booking.getStartTime(),
                 booking.getEndTime(),
