@@ -6,10 +6,10 @@ import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.NotificationType;
-import com.campusbook.campusbook.enums.SubscriptionTier;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
+import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -20,8 +20,6 @@ import java.util.List;
 @Service
 public class BookingService {
 
-    private static final int FREE_TIER_MONTHLY_BOOKING_LIMIT = 20;
-
     @Autowired
     private BookingRepository bookingRepository;
 
@@ -30,6 +28,9 @@ public class BookingService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private SubscriptionCatalog subscriptionCatalog;
 
     public Booking createBooking(Booking booking) {
         validateBookingWindow(booking.getStartTime(), booking.getEndTime());
@@ -154,6 +155,46 @@ public class BookingService {
         return saved;
     }
 
+    public Booking rescheduleBooking(Long bookingId, User actor, LocalDateTime newStart, LocalDateTime newEnd) {
+        Booking booking = getBookingById(bookingId);
+
+        boolean ownsBooking = booking.getUser().getId().equals(actor.getId());
+        boolean isAdmin = actor.getRole() != null && actor.getRole().name().equals("ADMIN");
+        if (!ownsBooking && !isAdmin) {
+            throw new SecurityException("You can only reschedule your own bookings");
+        }
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new IllegalStateException("Cancelled bookings cannot be rescheduled");
+        }
+
+        validateBookingWindow(newStart, newEnd);
+
+        List<Booking> conflicts = bookingRepository.findOverlappingBookings(
+                booking.getHall().getId(), booking.getId(), newStart, newEnd);
+        if (!conflicts.isEmpty()) {
+            throw new IllegalStateException("This hall is already booked for an overlapping time slot");
+        }
+
+        booking.setStartTime(newStart);
+        booking.setEndTime(newEnd);
+        // A time change requires fresh approval.
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setApprovedBy(null);
+        booking.setRejectionReason(null);
+        Booking saved = bookingRepository.save(booking);
+
+        notificationService.notifyInstitutionAdmins(
+                saved.getHall().getInstitution().getId(),
+                NotificationType.NEW_BOOKING_REQUEST,
+                "Booking rescheduled",
+                saved.getUser().getFullName() + " rescheduled their booking for "
+                        + saved.getHall().getBlock() + " " + saved.getHall().getRoomCode(),
+                saved.getId()
+        );
+
+        return saved;
+    }
+
     public Booking getBookingById(Long id) {
         return bookingRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
@@ -181,21 +222,22 @@ public class BookingService {
     }
 
     private void enforceMonthlyBookingLimit(Institution institution, LocalDateTime bookingStart) {
-        if (institution.getTier() == SubscriptionTier.FREE) {
-            YearMonth targetMonth = YearMonth.from(bookingStart);
-            LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
-            LocalDateTime monthEnd = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+        Integer limit = subscriptionCatalog.forTier(institution.getTier()).monthlyBookingLimit();
+        if (limit == null) return; // unlimited tier
 
-            long bookingCount = bookingRepository.countBookingsForInstitutionInRange(
-                    institution.getId(), monthStart, monthEnd
+        YearMonth targetMonth = YearMonth.from(bookingStart);
+        LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
+        LocalDateTime monthEnd = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+
+        long bookingCount = bookingRepository.countBookingsForInstitutionInRange(
+                institution.getId(), monthStart, monthEnd
+        );
+
+        if (bookingCount >= limit) {
+            throw new SubscriptionLimitExceededException(
+                    "Your plan allows a maximum of " + limit +
+                    " bookings per month. Upgrade to Campus Pro for unlimited bookings."
             );
-
-            if (bookingCount >= FREE_TIER_MONTHLY_BOOKING_LIMIT) {
-                throw new SubscriptionLimitExceededException(
-                        "Free tier allows a maximum of " + FREE_TIER_MONTHLY_BOOKING_LIMIT +
-                        " bookings per month. Upgrade to Campus Pro for unlimited bookings."
-                );
-            }
         }
     }
 }

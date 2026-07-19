@@ -3,6 +3,7 @@ package com.campusbook.campusbook.controller;
 import com.campusbook.campusbook.dto.BookingRequest;
 import com.campusbook.campusbook.dto.BookingResponse;
 import com.campusbook.campusbook.dto.RejectBookingRequest;
+import com.campusbook.campusbook.dto.RescheduleRequest;
 import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.User;
@@ -31,6 +32,8 @@ public class BookingController {
         booking.setUser(user);
         booking.setHall(hallReference(request.getHallId()));
         booking.setPurpose(request.getPurpose());
+        booking.setNotes(request.getNotes());
+        booking.setAttendance(request.getAttendance());
         booking.setStartTime(request.getStartTime());
         booking.setEndTime(request.getEndTime());
 
@@ -83,6 +86,14 @@ public class BookingController {
     public ResponseEntity<?> cancelBooking(@AuthenticationPrincipal User user,
                                             @PathVariable Long id) {
         return ResponseEntity.ok(BookingResponse.from(bookingService.cancelBooking(id, user)));
+    }
+
+    @PutMapping("/{id}/reschedule")
+    public ResponseEntity<?> rescheduleBooking(@AuthenticationPrincipal User user,
+                                               @PathVariable Long id,
+                                               @Valid @RequestBody RescheduleRequest request) {
+        return ResponseEntity.ok(BookingResponse.from(
+                bookingService.rescheduleBooking(id, user, request.getStartTime(), request.getEndTime())));
     }
 
     private Hall hallReference(Long hallId) {

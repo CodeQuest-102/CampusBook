@@ -32,6 +32,11 @@ public class Booking {
     @NotBlank
     private String purpose;        // e.g. "CSM 297 lecture", "Robotics Club meeting"
 
+    @Column(length = 1000)
+    private String notes;          // optional free-text notes from the requester
+
+    private Integer attendance;    // optional expected number of attendees
+
     @NotNull
     private LocalDateTime startTime;
 

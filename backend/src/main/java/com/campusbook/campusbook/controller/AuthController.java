@@ -3,6 +3,7 @@ package com.campusbook.campusbook.controller;
 import com.campusbook.campusbook.dto.AuthResponse;
 import com.campusbook.campusbook.dto.LoginRequest;
 import com.campusbook.campusbook.dto.RegisterRequest;
+import com.campusbook.campusbook.dto.ResetPasswordRequest;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.exception.InvalidCredentialsException;
 import com.campusbook.campusbook.security.JwtUtil;
@@ -57,5 +58,11 @@ public class AuthController {
         return ResponseEntity.ok(new AuthResponse(
                 token, user.getFullName(), user.getEmail(), user.getRole().name()
         ));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        userService.resetPassword(request.getEmailOrId(), request.getStaffOrStudentId(), request.getNewPassword());
+        return ResponseEntity.noContent().build();
     }
 }

@@ -44,4 +44,30 @@ public class UserService {
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
+
+    public User updateProfile(Long userId, com.campusbook.campusbook.dto.UpdateProfileRequest patch) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (patch.getFullName() != null && !patch.getFullName().isBlank()) {
+            user.setFullName(patch.getFullName().trim());
+        }
+        if (patch.getDepartment() != null) {
+            user.setDepartment(patch.getDepartment().trim());
+        }
+        return userRepository.save(user);
+    }
+
+    /**
+     * Simplified self-service reset: verifies the account and that the supplied
+     * staff/student ID matches, then sets a new password. A production flow would
+     * instead email a one-time token.
+     */
+    public void resetPassword(String emailOrId, String staffOrStudentId, String newPassword) {
+        User user = findByEmailOrStaffId(emailOrId);
+        if (!user.getStaffOrStudentId().equalsIgnoreCase(staffOrStudentId.trim())) {
+            throw new InvalidCredentialsException("Account details do not match");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
 }
