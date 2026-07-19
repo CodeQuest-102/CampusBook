@@ -4,12 +4,60 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen, TextField, Button, TopBar } from '../components';
 import { colors, fontWeight, radius, spacing, typography } from '../theme';
+import { useApp } from '../navigation/AppContext';
+import { ApiError } from '../api';
+import type { Role } from '../data/placeholder';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;
 
+// Admin accounts are provisioned by the institution, not self-registered.
+const ROLES: { key: Role; label: string }[] = [
+  { key: 'student', label: 'Student Leader' },
+  { key: 'staff', label: 'Lecturer' },
+];
+
 export default function SignUpScreen({ navigation }: Props) {
+  const { signUp } = useApp();
+
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('student');
+  const [staffOrStudentId, setStaffOrStudentId] = useState('');
+  const [department, setDepartment] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onSubmit = async () => {
+    if (!fullName.trim() || !email.trim() || !staffOrStudentId.trim() || !password) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      await signUp({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        role,
+        staffOrStudentId: staffOrStudentId.trim(),
+        department: department.trim() || undefined,
+        password,
+      });
+      // Success → navigator swaps to the authenticated stack automatically.
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Sign up failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -17,26 +65,71 @@ export default function SignUpScreen({ navigation }: Props) {
       <Screen scroll>
         <Text style={styles.subtitle}>Join CampusBook to get started</Text>
 
-        <TextField label="Full Name" icon="person-outline" placeholder="Abubakar Sadiq" />
+        <TextField
+          label="Full Name"
+          icon="person-outline"
+          placeholder="Abubakar Sadiq"
+          value={fullName}
+          onChangeText={setFullName}
+        />
         <TextField
           label="Email Address"
           icon="mail-outline"
           placeholder="you@st.knust.edu.gh"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
+          value={email}
+          onChangeText={setEmail}
+        />
+
+        <Text style={styles.groupLabel}>I am a</Text>
+        <View style={styles.roleRow}>
+          {ROLES.map((r) => {
+            const active = role === r.key;
+            return (
+              <TouchableOpacity
+                key={r.key}
+                style={[styles.roleChip, active && styles.roleChipActive]}
+                onPress={() => setRole(r.key)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.roleText, active && styles.roleTextActive]}>{r.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <TextField
+          label={role === 'staff' ? 'Staff ID' : 'Student ID'}
+          icon="id-card-outline"
+          placeholder={role === 'staff' ? 'e.g. STF12345' : 'e.g. 20551234'}
+          autoCapitalize="characters"
+          value={staffOrStudentId}
+          onChangeText={setStaffOrStudentId}
         />
         <TextField
-          label="Phone Number"
-          icon="call-outline"
-          placeholder="+233 ..."
-          keyboardType="phone-pad"
+          label="Department"
+          icon="business-outline"
+          placeholder="Computer Science"
+          value={department}
+          onChangeText={setDepartment}
         />
-        <TextField label="Password" icon="lock-closed-outline" placeholder="••••••••" secure />
+        <TextField
+          label="Password"
+          icon="lock-closed-outline"
+          placeholder="••••••••"
+          secure
+          value={password}
+          onChangeText={setPassword}
+        />
         <TextField
           label="Confirm Password"
           icon="lock-closed-outline"
           placeholder="••••••••"
           secure
+          value={confirm}
+          onChangeText={setConfirm}
         />
 
         <TouchableOpacity
@@ -53,10 +146,13 @@ export default function SignUpScreen({ navigation }: Props) {
           </Text>
         </TouchableOpacity>
 
+        {error && <Text style={styles.error}>{error}</Text>}
+
         <Button
           title="Sign Up"
           disabled={!agreed}
-          onPress={() => navigation.replace('Main')}
+          loading={loading}
+          onPress={onSubmit}
           style={{ marginTop: spacing.md }}
         />
 
@@ -73,6 +169,26 @@ export default function SignUpScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   subtitle: { ...typography.bodyMuted, marginTop: spacing.sm, marginBottom: spacing.xl },
+  groupLabel: {
+    ...typography.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  roleRow: { flexDirection: 'row', marginBottom: spacing.lg },
+  roleChip: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  roleChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  roleText: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: 13 },
+  roleTextActive: { color: colors.white },
   terms: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
   checkbox: {
     width: 20,
@@ -87,6 +203,12 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   termsText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
   link: { color: colors.primary, fontWeight: fontWeight.medium },
+  error: {
+    color: colors.danger,
+    fontSize: 13,
+    marginBottom: spacing.md,
+    fontWeight: fontWeight.medium,
+  },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl },
   footerText: { color: colors.textSecondary },
   footerLink: { color: colors.primary, fontWeight: fontWeight.semibold },

@@ -1,5 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
-import type { Room, Booking, BookingRequest } from '../data/placeholder';
+import type { Room, Booking, BookingRequest, ScheduleEntry } from '../data/placeholder';
 
 /** Tabs shared across roles (each role uses a subset — see RootNavigator). */
 export type MainTabParamList = {
@@ -25,8 +25,8 @@ export type RootStackParamList = {
   BrowseRooms: undefined;
   RoomDetails: { room: Room };
   BookingForm: { room: Room };
-  BookingConfirmation: { room: Room };
-  DaySchedule: { date: string };
+  BookingConfirmation: { room: Room; dateLabel: string; timeLabel: string; purpose: string };
+  DaySchedule: { date: string; entries: ScheduleEntry[] };
   RequestDetails: { request: BookingRequest };
   RoomManagement: undefined;
   BookingDetails: { booking: Booking };

@@ -1,19 +1,14 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors, fontWeight, radius, spacing } from '../theme';
-import type { RootStackParamList } from '../navigation/types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>;
-
-export default function SplashScreen({ navigation }: Props) {
-  useEffect(() => {
-    const t = setTimeout(() => navigation.replace('Onboarding'), 1600);
-    return () => clearTimeout(t);
-  }, [navigation]);
-
+/**
+ * Purely visual splash shown while the persisted session is being restored.
+ * Routing is handled by RootNavigator's auth gate, not by this screen.
+ */
+export default function SplashScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
