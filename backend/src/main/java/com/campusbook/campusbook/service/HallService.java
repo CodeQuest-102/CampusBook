@@ -2,9 +2,9 @@ package com.campusbook.campusbook.service;
 
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.User;
-import com.campusbook.campusbook.enums.SubscriptionTier;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.HallRepository;
+import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.campusbook.campusbook.dto.HallAvailabilityResponse;
@@ -20,12 +20,12 @@ import java.util.List;
 @Service
 public class HallService {
 
-    private static final int FREE_TIER_HALL_LIMIT = 5;
-
     @Autowired
     private HallRepository hallRepository;
     @Autowired
     private BookingRepository bookingRepository;
+    @Autowired
+    private SubscriptionCatalog subscriptionCatalog;
 
     public Hall createHall(Hall hall, User admin) {
         hallRepository.findByRoomCode(hall.getRoomCode()).ifPresent(existing -> {
@@ -100,13 +100,14 @@ public class HallService {
     }
 
     private void enforceHallLimit(com.campusbook.campusbook.entity.Institution institution) {
-        if (institution.getTier() == SubscriptionTier.FREE) {
-            long activeCount = hallRepository.countByInstitutionIdAndActiveTrue(institution.getId());
-            if (activeCount >= FREE_TIER_HALL_LIMIT) {
-                throw new SubscriptionLimitExceededException(
-                        "Free tier allows a maximum of " + FREE_TIER_HALL_LIMIT + " active halls. Upgrade to Campus Pro for unlimited halls."
-                );
-            }
+        Integer limit = subscriptionCatalog.forTier(institution.getTier()).activeHallLimit();
+        if (limit == null) return; // unlimited tier
+
+        long activeCount = hallRepository.countByInstitutionIdAndActiveTrue(institution.getId());
+        if (activeCount >= limit) {
+            throw new SubscriptionLimitExceededException(
+                    "Your plan allows a maximum of " + limit + " active rooms. Upgrade to Campus Pro for unlimited rooms."
+            );
         }
     }
 }

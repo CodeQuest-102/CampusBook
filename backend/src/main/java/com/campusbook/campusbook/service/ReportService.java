@@ -44,11 +44,7 @@ public class ReportService {
                 .filter(b -> b.getStatus() != BookingStatus.CANCELLED)
                 .toList();
 
-        ReportsResponse.Overview overview = new ReportsResponse.Overview(
-                hallRepository.count(),
-                bookingRepository.count(),
-                bookingRepository.countByStatus(BookingStatus.PENDING)
-        );
+        ReportsResponse.Overview overview = buildOverview();
 
         ReportsResponse.LabelledCount mostBookedRoom = mostBookedRoom(bookings);
         ReportsResponse.LabelledCount peakDay = peakDay(bookings);
@@ -56,6 +52,15 @@ public class ReportService {
         List<ReportsResponse.SeriesPoint> bookingsOverTime = bookingsByWeekday(bookings);
 
         return new ReportsResponse(overview, mostBookedRoom, peakDay, utilizationRate, bookingsOverTime);
+    }
+
+    /** Basic system counts — available to all admins regardless of plan. */
+    public ReportsResponse.Overview buildOverview() {
+        return new ReportsResponse.Overview(
+                hallRepository.count(),
+                bookingRepository.count(),
+                bookingRepository.countByStatus(BookingStatus.PENDING)
+        );
     }
 
     private ReportsResponse.LabelledCount mostBookedRoom(List<Booking> bookings) {
