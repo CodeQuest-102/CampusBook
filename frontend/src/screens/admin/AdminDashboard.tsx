@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -10,7 +11,7 @@ import {
   BookingCard,
 } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
-import { reportsApi, bookingsApi, bookingToUi } from '../../api';
+import { reportsApi, bookingsApi, subscriptionApi, bookingToUi } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
 import { useApp } from '../../navigation/AppContext';
 import type { RootStackParamList } from '../../navigation/types';
@@ -22,18 +23,21 @@ export default function AdminDashboard() {
   const { displayName } = useApp();
 
   const { data } = useApiData(async () => {
-    const [summary, bookings] = await Promise.all([
-      reportsApi.getSummary('month'),
+    const [overview, bookings, subscription] = await Promise.all([
+      reportsApi.getOverview(),
       bookingsApi.allBookings().catch(() => []),
+      subscriptionApi.getSubscription().catch(() => null),
     ]);
     return {
-      overview: summary.overview,
+      overview,
       recent: bookings.slice(0, 2).map(bookingToUi),
+      planName: subscription?.planName ?? null,
     };
   });
 
   const overview = data?.overview ?? { totalRooms: 0, totalBookings: 0, pendingRequests: 0 };
   const recent = data?.recent ?? [];
+  const planName = data?.planName ?? null;
 
   return (
     <>
@@ -47,7 +51,19 @@ export default function AdminDashboard() {
       />
       <Screen scroll>
         <View style={styles.overview}>
-          <Text style={styles.overviewTitle}>System Overview</Text>
+          <View style={styles.overviewTop}>
+            <Text style={styles.overviewTitle}>System Overview</Text>
+            {planName && (
+              <TouchableOpacity
+                style={styles.planPill}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('Subscription')}
+              >
+                <Ionicons name="ribbon-outline" size={13} color={colors.white} />
+                <Text style={styles.planPillText}>{planName}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <View style={styles.overviewRow}>
             <OverviewStat count={overview.totalRooms} label="Total Rooms" />
             <View style={styles.vline} />
@@ -75,6 +91,11 @@ export default function AdminDashboard() {
             onPress={() => navigation.navigate('Main', { screen: 'Reports' })}
           />
           <QuickAction icon="people" label="Users" onPress={() => navigation.navigate('Users')} />
+          <QuickAction
+            icon="ribbon"
+            label="Subscription"
+            onPress={() => navigation.navigate('Subscription')}
+          />
         </View>
 
         <SectionHeader
@@ -110,7 +131,22 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     marginTop: spacing.lg,
   },
-  overviewTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14, marginBottom: spacing.lg },
+  overviewTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  overviewTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
+  planPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  planPillText: { color: colors.white, fontSize: 12, fontWeight: '600', marginLeft: 4 },
   overviewRow: { flexDirection: 'row', alignItems: 'center' },
   overviewStat: { flex: 1, alignItems: 'center' },
   overviewCount: { color: colors.white, fontSize: 28, fontWeight: '700' },

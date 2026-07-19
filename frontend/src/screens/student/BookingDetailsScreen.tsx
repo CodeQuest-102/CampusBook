@@ -16,7 +16,7 @@ import {
 } from '../../components';
 import { bookingTone } from '../../components/StatusPill';
 import { colors, radius, spacing, typography } from '../../theme';
-import { bookingsApi, ApiError } from '../../api';
+import { bookingsApi, toLocalDateTimeIso, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingDetails'>;
@@ -39,6 +39,23 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const [draftTime, setDraftTime] = useState(start);
   const [rescheduled, setRescheduled] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const confirmReschedule = async () => {
+    setSaving(true);
+    try {
+      await bookingsApi.reschedule(booking.id, {
+        startTime: toLocalDateTimeIso(date, start),
+        endTime: toLocalDateTimeIso(date, end),
+      });
+      setEditing(false);
+      setRescheduled(true);
+    } catch (e) {
+      Alert.alert('Could not reschedule', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const cancelBooking = () => {
     Alert.alert('Cancel booking', 'Are you sure you want to cancel this booking?', [
@@ -133,10 +150,8 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
             <Button
               title="Confirm New Time"
               icon="checkmark"
-              onPress={() => {
-                setEditing(false);
-                setRescheduled(true);
-              }}
+              loading={saving}
+              onPress={confirmReschedule}
             />
             <Button
               title="Discard"
@@ -182,8 +197,11 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
       <SuccessOverlay
         visible={rescheduled}
         title="Booking Rescheduled"
-        subtitle={`Now ${formatDate(date)} · ${start} — ${end}`}
-        onDone={() => setRescheduled(false)}
+        subtitle={`Now ${formatDate(date)} · ${start} — ${end}. Awaiting re-approval.`}
+        onDone={() => {
+          setRescheduled(false);
+          navigation.goBack();
+        }}
       />
     </>
   );

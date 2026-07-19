@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, TopBar, Avatar, TextField, Button } from '../../components';
 import { colors, spacing, typography } from '../../theme';
+import { usersApi, ApiError } from '../../api';
 import { useApp } from '../../navigation/AppContext';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -15,21 +16,25 @@ export default function EditProfileScreen() {
   const { profile, updateProfile } = useApp();
 
   const [name, setName] = useState(profile.name);
-  const [email, setEmail] = useState(profile.email);
+  const [email] = useState(profile.email);
   const [department, setDepartment] = useState(profile.department);
+  const [saving, setSaving] = useState(false);
 
   const dirty =
-    name.trim() !== profile.name ||
-    email.trim() !== profile.email ||
-    department.trim() !== profile.department;
+    name.trim() !== profile.name || department.trim() !== profile.department;
 
-  const save = () => {
-    updateProfile({
-      name: name.trim() || profile.name,
-      email: email.trim(),
-      department: department.trim(),
-    });
-    navigation.goBack();
+  const save = async () => {
+    setSaving(true);
+    try {
+      // Email is the login identity and isn't editable here; only name + department.
+      await usersApi.updateMe({ fullName: name.trim() || profile.name, department: department.trim() });
+      updateProfile({ name: name.trim() || profile.name, department: department.trim() });
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert('Could not save', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -57,7 +62,7 @@ export default function EditProfileScreen() {
         <TextField
           label="Email Address"
           value={email}
-          onChangeText={setEmail}
+          editable={false}
           icon="mail-outline"
           placeholder="you@knust.edu.gh"
           keyboardType="email-address"
@@ -73,7 +78,7 @@ export default function EditProfileScreen() {
       </Screen>
 
       <View style={styles.footer}>
-        <Button title="Save Changes" onPress={save} disabled={!dirty} />
+        <Button title="Save Changes" onPress={save} disabled={!dirty} loading={saving} />
       </View>
     </>
   );

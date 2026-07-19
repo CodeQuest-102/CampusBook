@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, TopBar, BookingCard, StateView } from '../../components';
@@ -15,7 +15,7 @@ export default function MyBookingsScreen() {
   const navigation = useNavigation<Nav>();
   const [tab, setTab] = useState<(typeof TABS)[number]>('All');
 
-  const { data, loading, error, reload } = useApiData(async () =>
+  const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
     (await bookingsApi.myBookings()).map(bookingToUi),
   );
 
@@ -27,7 +27,12 @@ export default function MyBookingsScreen() {
   return (
     <>
       <TopBar variant="title" title="My Bookings" />
-      <Screen scroll>
+      <Screen
+        scroll
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+        }
+      >
         <View style={styles.tabs}>
           {TABS.map((t) => {
             const on = tab === t;

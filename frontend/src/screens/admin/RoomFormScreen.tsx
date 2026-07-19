@@ -52,7 +52,15 @@ export default function RoomFormScreen({ route, navigation }: Props) {
       else await hallsApi.createHall(payload);
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Could not save', e instanceof ApiError ? e.message : 'Please try again.');
+      // 402 = plan room limit reached — offer an upgrade path.
+      if (e instanceof ApiError && e.status === 402) {
+        Alert.alert('Room limit reached', e.message, [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'View Plans', onPress: () => navigation.navigate('Subscription') },
+        ]);
+      } else {
+        Alert.alert('Could not save', e instanceof ApiError ? e.message : 'Please try again.');
+      }
     } finally {
       setSaving(false);
     }

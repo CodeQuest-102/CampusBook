@@ -51,6 +51,9 @@ export default function RequestDetailsScreen({ route, navigation }: Props) {
           <DetailRow label="Room" value={`${request.building}\n${request.roomName}`} />
           <DetailRow label="Date & Time" value={`${request.date} · ${request.startTime} — ${request.endTime}`} />
           <DetailRow label="Purpose / Event Title" value={request.purpose} />
+          {request.attendance != null && (
+            <DetailRow label="Expected Attendance" value={`${request.attendance}`} />
+          )}
           {request.notes && <DetailRow label="Additional Notes" value={request.notes} />}
         </View>
       </Screen>

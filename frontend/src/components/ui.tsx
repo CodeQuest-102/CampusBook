@@ -34,10 +34,15 @@ export function SearchBar({
   placeholder = 'Search rooms, buildings...',
   onFilter,
   onPress,
+  value,
+  onChangeText,
 }: {
   placeholder?: string;
   onFilter?: () => void;
   onPress?: () => void;
+  /** Pass value + onChangeText to make this a live text filter. */
+  value?: string;
+  onChangeText?: (text: string) => void;
 }) {
   return (
     <View style={styles.searchRow}>
@@ -53,6 +58,10 @@ export function SearchBar({
             placeholder={placeholder}
             placeholderTextColor={colors.textTertiary}
             style={[styles.searchInput, noWebOutline]}
+            value={value}
+            onChangeText={onChangeText}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
         </View>
       )}
