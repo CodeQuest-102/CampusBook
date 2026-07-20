@@ -86,6 +86,22 @@ export interface ReschedulePayload {
   endTime: string;
 }
 
+export interface RecurringBookingPayload {
+  hallId: number;
+  purpose: string;
+  notes?: string;
+  attendance?: number;
+  startTime: string; // first occurrence, ISO LocalDateTime
+  endTime: string;
+  until: string; // ISO date (YYYY-MM-DD), inclusive
+}
+
+export interface RecurringBookingResponse {
+  requested: number;
+  created: BookingResponse[];
+  skipped: { date: string; reason: string }[];
+}
+
 export interface UpdateProfilePayload {
   fullName?: string;
   department?: string;

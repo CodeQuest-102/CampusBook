@@ -9,12 +9,16 @@ import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.enums.SubscriptionTier;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
+import com.campusbook.campusbook.subscription.SubscriptionCatalog;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +37,12 @@ class BookingServiceTest {
     @Mock NotificationService notificationService;
 
     @InjectMocks BookingService bookingService;
+
+    @BeforeEach
+    void injectRealCatalog() {
+        // Real catalog so tier limits resolve; the mocked one would return null.
+        ReflectionTestUtils.setField(bookingService, "subscriptionCatalog", new SubscriptionCatalog());
+    }
 
     private Institution institution() {
         Institution i = new Institution();
@@ -140,5 +150,47 @@ class BookingServiceTest {
         assertThatThrownBy(() ->
                 bookingService.rescheduleBooking(10L, stranger, newStart, newStart.plusHours(2)))
                 .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void recurring_createsOnePerWeekWhenNoConflicts() {
+        Hall hall = activeHall(institution());
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        LocalDateTime first = LocalDateTime.now().plusDays(3).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDate until = first.toLocalDate().plusWeeks(2); // 3 occurrences
+
+        BookingService.RecurringResult result = bookingService.createRecurringBookings(
+                user(1L), 2L, "Weekly Lecture", null, 40, first, first.plusHours(2), until);
+
+        assertThat(result.created()).hasSize(3);
+        assertThat(result.skipped()).isEmpty();
+        assertThat(result.created()).allMatch(b -> b.getStatus() == BookingStatus.PENDING);
+        verify(notificationService).notifyInstitutionAdmins(eq(1L), any(), any(), any(), any());
+    }
+
+    @Test
+    void recurring_skipsConflictingWeek() {
+        Hall hall = activeHall(institution());
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        LocalDateTime first = LocalDateTime.now().plusDays(3).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDate until = first.toLocalDate().plusWeeks(2); // 3 occurrences
+        // First occurrence conflicts, the rest are free.
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of(new Booking()))
+                .thenReturn(List.of())
+                .thenReturn(List.of());
+
+        BookingService.RecurringResult result = bookingService.createRecurringBookings(
+                user(1L), 2L, "Weekly Lecture", null, 40, first, first.plusHours(2), until);
+
+        assertThat(result.created()).hasSize(2);
+        assertThat(result.skipped()).hasSize(1);
+        assertThat(result.skipped().get(0).reason()).contains("already booked");
     }
 }

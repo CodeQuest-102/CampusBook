@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -13,12 +13,12 @@ import {
   formatDate,
 } from '../../components';
 import { colors, fontWeight, radius, spacing, typography } from '../../theme';
-import { bookingsApi, toLocalDateTimeIso, ApiError } from '../../api';
+import { bookingsApi, toLocalDateTimeIso, toLocalDateString, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingForm'>;
 
-type PickerKind = 'date' | 'start' | 'end';
+type PickerKind = 'date' | 'start' | 'end' | 'until';
 
 /** Default to tomorrow — the backend rejects bookings that start in the past. */
 function tomorrow(): Date {
@@ -37,6 +37,12 @@ export default function BookingFormScreen({ route, navigation }: Props) {
   const [purpose, setPurpose] = useState('');
   const [attendance, setAttendance] = useState('');
   const [notes, setNotes] = useState('');
+  const [repeat, setRepeat] = useState(false);
+  const [until, setUntil] = useState(() => {
+    const d = tomorrow();
+    d.setDate(d.getDate() + 28); // default: 4 weekly occurrences
+    return d;
+  });
   const [picker, setPicker] = useState<PickerKind | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -48,43 +54,75 @@ export default function BookingFormScreen({ route, navigation }: Props) {
 
   const openPicker = (kind: PickerKind) => {
     if (kind === 'date') setDraftDate(date);
+    else if (kind === 'until') setDraftDate(until);
     else setDraftTime(kind === 'start' ? start : end);
     setPicker(kind);
   };
 
   const confirmPicker = () => {
     if (picker === 'date') setDate(draftDate);
+    else if (picker === 'until') setUntil(draftDate);
     else if (picker === 'start') setStart(draftTime);
     else if (picker === 'end') setEnd(draftTime);
     setPicker(null);
   };
 
   const sheetTitle =
-    picker === 'date' ? 'Select Date' : picker === 'start' ? 'Select Start Time' : 'Select End Time';
+    picker === 'date'
+      ? 'Select Date'
+      : picker === 'until'
+      ? 'Repeat Until'
+      : picker === 'start'
+      ? 'Select Start Time'
+      : 'Select End Time';
 
   const submit = async () => {
     if (!purpose.trim()) {
       setFormError('Please enter a purpose / event title.');
       return;
     }
+    if (repeat && until <= date) {
+      setFormError('The repeat-until date must be after the first booking date.');
+      return;
+    }
     setFormError(null);
     setSubmitting(true);
+    const parsedAttendance = parseInt(attendance, 10);
+    const attendanceValue = Number.isNaN(parsedAttendance) ? undefined : parsedAttendance;
     try {
-      const parsedAttendance = parseInt(attendance, 10);
-      await bookingsApi.createBooking({
-        hallId: Number(room.id),
-        purpose: purpose.trim(),
-        notes: notes.trim() || undefined,
-        attendance: Number.isNaN(parsedAttendance) ? undefined : parsedAttendance,
-        startTime: toLocalDateTimeIso(date, start),
-        endTime: toLocalDateTimeIso(date, end),
-      });
-      navigation.replace('BookingConfirmation', {
-        room,
-        dateLabel: formatDate(date),
-        timeLabel: `${start} — ${end}`,
-        purpose: purpose.trim(),
-      });
+      if (repeat) {
+        const result = await bookingsApi.createRecurring({
+          hallId: Number(room.id),
+          purpose: purpose.trim(),
+          notes: notes.trim() || undefined,
+          attendance: attendanceValue,
+          startTime: toLocalDateTimeIso(date, start),
+          endTime: toLocalDateTimeIso(date, end),
+          until: toLocalDateString(until),
+        });
+        const skipped = result.skipped.length;
+        Alert.alert(
+          'Recurring booking submitted',
+          `${result.created.length} weekly slot${result.created.length === 1 ? '' : 's'} requested` +
+            (skipped ? `, ${skipped} skipped (conflicts or limits).` : '.'),
+          [{ text: 'OK', onPress: () => navigation.replace('Main', { screen: 'Bookings' }) }],
+        );
+      } else {
+        await bookingsApi.createBooking({
+          hallId: Number(room.id),
+          purpose: purpose.trim(),
+          notes: notes.trim() || undefined,
+          attendance: attendanceValue,
+          startTime: toLocalDateTimeIso(date, start),
+          endTime: toLocalDateTimeIso(date, end),
+        });
+        navigation.replace('BookingConfirmation', {
+          room,
+          dateLabel: formatDate(date),
+          timeLabel: `${start} — ${end}`,
+          purpose: purpose.trim(),
+        });
+      }
     } catch (e) {
       setFormError(e instanceof ApiError ? e.message : 'Could not submit your request.');
     } finally {
@@ -157,6 +195,29 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           containerStyle={{ marginBottom: spacing.sm }}
         />
 
+        <TouchableOpacity
+          style={styles.repeatRow}
+          activeOpacity={0.8}
+          onPress={() => setRepeat((r) => !r)}
+        >
+          <View style={[styles.checkbox, repeat && styles.checkboxOn]}>
+            {repeat && <Ionicons name="checkmark" size={14} color={colors.white} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.repeatTitle}>Repeat weekly</Text>
+            <Text style={styles.repeatSub}>Book this slot every week until a chosen date</Text>
+          </View>
+        </TouchableOpacity>
+
+        {repeat && (
+          <PickerField
+            label="Repeat until"
+            value={formatDate(until)}
+            icon="repeat-outline"
+            onPress={() => openPicker('until')}
+          />
+        )}
+
         {formError && <Text style={styles.error}>{formError}</Text>}
       </Screen>
 
@@ -166,7 +227,7 @@ export default function BookingFormScreen({ route, navigation }: Props) {
 
       <PickerSheet
         visible={picker !== null}
-        mode={picker === 'date' ? 'date' : picker ? 'time' : null}
+        mode={picker === 'date' || picker === 'until' ? 'date' : picker ? 'time' : null}
         title={sheetTitle}
         date={draftDate}
         time={draftTime}
@@ -203,6 +264,25 @@ const styles = StyleSheet.create({
   roomName: { ...typography.title, fontSize: 15 },
   roomMeta: { ...typography.caption, marginTop: 2 },
   timeRow: { flexDirection: 'row' },
+  repeatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  repeatTitle: { ...typography.body, fontWeight: fontWeight.semibold },
+  repeatSub: { ...typography.caption, marginTop: 1 },
   error: {
     color: colors.danger,
     fontSize: 13,
