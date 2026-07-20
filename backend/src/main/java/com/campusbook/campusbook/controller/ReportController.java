@@ -6,6 +6,8 @@ import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.service.ReportService;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,5 +43,25 @@ public class ReportController {
                     "The analytics dashboard is a Campus Pro feature. Upgrade to unlock reporting.");
         }
         return ResponseEntity.ok(reportService.buildSummary(period));
+    }
+
+    /** Export the period's bookings as CSV — a Campus Pro feature. */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/export")
+    public ResponseEntity<String> export(
+            @AuthenticationPrincipal User user,
+            @RequestParam(value = "period", defaultValue = "month") String period) {
+        boolean analyticsIncluded =
+                subscriptionCatalog.forTier(user.getInstitution().getTier()).analytics();
+        if (!analyticsIncluded) {
+            throw new SubscriptionLimitExceededException(
+                    "Report export is a Campus Pro feature. Upgrade to unlock reporting.");
+        }
+        String csv = reportService.exportBookingsCsv(period);
+        String filename = "campusbook-report-" + period.toLowerCase() + ".csv";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(new MediaType("text", "csv"))
+                .body(csv);
     }
 }

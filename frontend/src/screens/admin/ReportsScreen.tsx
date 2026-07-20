@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, TopBar, StateView, Button } from '../../components';
 import { colors, radius, shadow, spacing, typography } from '../../theme';
-import { reportsApi } from '../../api';
+import { reportsApi, ApiError } from '../../api';
 import type { ReportPeriod } from '../../api/reports';
 import { useApiData } from '../../hooks/useApiData';
 import type { RootStackParamList } from '../../navigation/types';
@@ -29,9 +30,26 @@ export default function ReportsScreen() {
 
   // 402 = analytics is gated behind Campus Pro.
   const locked = errorStatus === 402;
+  const [exporting, setExporting] = useState(false);
 
   const series = data?.bookingsOverTime ?? [];
   const maxValue = Math.max(1, ...series.map((b) => b.value));
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const uri = await reportsApi.downloadReportCsv(period);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Export report' });
+      } else {
+        Alert.alert('Saved', `Report saved to:\n${uri}`);
+      }
+    } catch (e) {
+      Alert.alert('Export failed', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -56,14 +74,32 @@ export default function ReportsScreen() {
           </View>
         ) : (
           <>
-            <TouchableOpacity
-              style={styles.period}
-              activeOpacity={0.8}
-              onPress={() => setPeriodIndex((i) => (i + 1) % PERIODS.length)}
-            >
-              <Text style={styles.periodText}>{PERIODS[periodIndex].label}</Text>
-              <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <View style={styles.headerRow}>
+              <TouchableOpacity
+                style={styles.period}
+                activeOpacity={0.8}
+                onPress={() => setPeriodIndex((i) => (i + 1) % PERIODS.length)}
+              >
+                <Text style={styles.periodText}>{PERIODS[periodIndex].label}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              {!loading && !error && data && (
+                <TouchableOpacity
+                  style={styles.exportBtn}
+                  activeOpacity={0.8}
+                  disabled={exporting}
+                  onPress={exportCsv}
+                >
+                  <Ionicons
+                    name={exporting ? 'hourglass-outline' : 'download-outline'}
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.exportText}>{exporting ? 'Exporting…' : 'Export CSV'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             <StateView loading={loading} error={error} onRetry={reload} />
 
@@ -143,20 +179,35 @@ function StatCard({
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
+  },
   period: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
   },
   periodText: { fontWeight: '600', color: colors.text, marginRight: spacing.sm },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  exportText: { color: colors.primary, fontWeight: '600', fontSize: 13, marginLeft: 6 },
   lockCard: {
     alignItems: 'center',
     backgroundColor: colors.card,

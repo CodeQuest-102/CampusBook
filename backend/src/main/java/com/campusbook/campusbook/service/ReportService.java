@@ -30,13 +30,18 @@ public class ReportService {
     @Autowired
     private HallRepository hallRepository;
 
-    public ReportsResponse buildSummary(String period) {
+    private LocalDateTime rangeStartFor(String period) {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime rangeStart = switch (period == null ? "month" : period.toLowerCase()) {
+        return switch (period == null ? "month" : period.toLowerCase()) {
             case "week" -> now.minusDays(7);
             case "year" -> now.minusDays(365);
             default -> now.minusDays(30);
         };
+    }
+
+    public ReportsResponse buildSummary(String period) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime rangeStart = rangeStartFor(period);
         long rangeDays = Math.max(1, ChronoUnit.DAYS.between(rangeStart.toLocalDate(), now.toLocalDate()) + 1);
 
         // Non-cancelled bookings that start within the selected period.
@@ -61,6 +66,43 @@ public class ReportService {
                 bookingRepository.count(),
                 bookingRepository.countByStatus(BookingStatus.PENDING)
         );
+    }
+
+    /** Bookings in the selected period as a CSV document (Campus Pro feature). */
+    public String exportBookingsCsv(String period) {
+        List<Booking> bookings = bookingRepository
+                .findByStartTimeBetween(rangeStartFor(period), LocalDateTime.now()).stream()
+                .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
+                .toList();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("ID,Room,Booked By,Role,Purpose,Attendance,Status,Start,End,Created\n");
+        for (Booking b : bookings) {
+            String room = b.getHall().getBlock() + " " + b.getHall().getRoomCode();
+            String role = b.getUser().getRole() == null ? "" : b.getUser().getRole().name();
+            sb.append(csv(b.getId()))
+              .append(',').append(csv(room))
+              .append(',').append(csv(b.getUser().getFullName()))
+              .append(',').append(csv(role))
+              .append(',').append(csv(b.getPurpose()))
+              .append(',').append(csv(b.getAttendance()))
+              .append(',').append(csv(b.getStatus().name()))
+              .append(',').append(csv(b.getStartTime()))
+              .append(',').append(csv(b.getEndTime()))
+              .append(',').append(csv(b.getCreatedAt()))
+              .append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** CSV-escape a value: wrap in quotes and double any embedded quotes. */
+    private String csv(Object value) {
+        if (value == null) return "";
+        String s = value.toString();
+        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
     }
 
     private ReportsResponse.LabelledCount mostBookedRoom(List<Booking> bookings) {
