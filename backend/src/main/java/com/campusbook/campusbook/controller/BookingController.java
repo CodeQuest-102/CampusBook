@@ -2,6 +2,8 @@ package com.campusbook.campusbook.controller;
 
 import com.campusbook.campusbook.dto.BookingRequest;
 import com.campusbook.campusbook.dto.BookingResponse;
+import com.campusbook.campusbook.dto.RecurringBookingRequest;
+import com.campusbook.campusbook.dto.RecurringBookingResponse;
 import com.campusbook.campusbook.dto.RejectBookingRequest;
 import com.campusbook.campusbook.dto.RescheduleRequest;
 import com.campusbook.campusbook.entity.Booking;
@@ -38,6 +40,18 @@ public class BookingController {
         booking.setEndTime(request.getEndTime());
 
         return ResponseEntity.ok(BookingResponse.from(bookingService.createBooking(booking)));
+    }
+
+    @PostMapping("/recurring")
+    public ResponseEntity<RecurringBookingResponse> createRecurring(@AuthenticationPrincipal User user,
+                                                                    @Valid @RequestBody RecurringBookingRequest request) {
+        BookingService.RecurringResult result = bookingService.createRecurringBookings(
+                user, request.getHallId(), request.getPurpose(), request.getNotes(),
+                request.getAttendance(), request.getStartTime(), request.getEndTime(), request.getUntil());
+
+        List<BookingResponse> created = result.created().stream().map(BookingResponse::from).toList();
+        return ResponseEntity.ok(new RecurringBookingResponse(
+                created.size() + result.skipped().size(), created, result.skipped()));
     }
 
     @GetMapping("/my")

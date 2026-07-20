@@ -9,12 +9,16 @@ import com.campusbook.campusbook.enums.NotificationType;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
+import com.campusbook.campusbook.dto.RecurringBookingResponse;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -68,6 +72,84 @@ public class BookingService {
         );
 
         return saved;
+    }
+
+    /** Created bookings plus the occurrences that were skipped and why. */
+    public record RecurringResult(List<Booking> created,
+                                  List<RecurringBookingResponse.SkippedOccurrence> skipped) {}
+
+    /** Max occurrences a single series may generate (~14 months of weekly slots). */
+    private static final int MAX_OCCURRENCES = 60;
+
+    /**
+     * Create a weekly series from {@code firstStart}/{@code firstEnd} until {@code until}
+     * (inclusive). Each occurrence reuses the same window / conflict / limit checks as a
+     * single booking; occurrences that fail any check are skipped (with a reason) rather
+     * than aborting the whole series. Admins get one summary notification.
+     */
+    public RecurringResult createRecurringBookings(User user, Long hallId, String purpose,
+                                                   String notes, Integer attendance,
+                                                   LocalDateTime firstStart, LocalDateTime firstEnd,
+                                                   LocalDate until) {
+        if (!firstStart.isBefore(firstEnd)) {
+            throw new IllegalArgumentException("Start time must be before end time");
+        }
+        if (until.isBefore(firstStart.toLocalDate())) {
+            throw new IllegalArgumentException("End date must be on or after the first occurrence");
+        }
+
+        Hall hall = hallRepository.findById(hallId)
+                .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
+        if (!hall.isActive()) {
+            throw new IllegalArgumentException("This hall is not available for booking");
+        }
+
+        Duration duration = Duration.between(firstStart, firstEnd);
+        List<Booking> created = new ArrayList<>();
+        List<RecurringBookingResponse.SkippedOccurrence> skipped = new ArrayList<>();
+
+        LocalDateTime start = firstStart;
+        int count = 0;
+        while (!start.toLocalDate().isAfter(until) && count < MAX_OCCURRENCES) {
+            count++;
+            LocalDateTime end = start.plus(duration);
+            LocalDate date = start.toLocalDate();
+            try {
+                validateBookingWindow(start, end);
+                List<Booking> conflicts = bookingRepository.findOverlappingBookings(hall.getId(), -1L, start, end);
+                if (!conflicts.isEmpty()) {
+                    throw new IllegalStateException("Hall already booked for this slot");
+                }
+                enforceMonthlyBookingLimit(hall.getInstitution(), start);
+
+                Booking b = new Booking();
+                b.setUser(user);
+                b.setHall(hall);
+                b.setPurpose(purpose);
+                b.setNotes(notes);
+                b.setAttendance(attendance);
+                b.setStartTime(start);
+                b.setEndTime(end);
+                b.setStatus(BookingStatus.PENDING);
+                created.add(bookingRepository.save(b));
+            } catch (IllegalArgumentException | IllegalStateException | SubscriptionLimitExceededException e) {
+                skipped.add(new RecurringBookingResponse.SkippedOccurrence(date, e.getMessage()));
+            }
+            start = start.plusWeeks(1);
+        }
+
+        if (!created.isEmpty()) {
+            notificationService.notifyInstitutionAdmins(
+                    hall.getInstitution().getId(),
+                    NotificationType.NEW_BOOKING_REQUEST,
+                    "New recurring booking request",
+                    user.getFullName() + " requested " + created.size() + " weekly slots for "
+                            + hall.getBlock() + " " + hall.getRoomCode() + " (" + purpose + ")",
+                    created.get(0).getId()
+            );
+        }
+
+        return new RecurringResult(created, skipped);
     }
 
     public Booking approveBooking(Long bookingId, User admin) {

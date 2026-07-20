@@ -1,8 +1,23 @@
 import { apiFetch } from './client';
-import type { BookingResponse, BookingPayload, ReschedulePayload } from './types';
+import type {
+  BookingResponse,
+  BookingPayload,
+  ReschedulePayload,
+  RecurringBookingPayload,
+  RecurringBookingResponse,
+} from './types';
 
 export function createBooking(payload: BookingPayload): Promise<BookingResponse> {
   return apiFetch<BookingResponse>('/api/bookings', { method: 'POST', body: payload });
+}
+
+export function createRecurring(
+  payload: RecurringBookingPayload,
+): Promise<RecurringBookingResponse> {
+  return apiFetch<RecurringBookingResponse>('/api/bookings/recurring', {
+    method: 'POST',
+    body: payload,
+  });
 }
 
 export function myBookings(): Promise<BookingResponse[]> {
