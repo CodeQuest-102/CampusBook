@@ -1,0 +1,113 @@
+package com.campusbook.campusbook.service;
+
+import com.campusbook.campusbook.entity.Hall;
+import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
+import com.campusbook.campusbook.repository.HallRepository;
+import com.campusbook.campusbook.subscription.SubscriptionCatalog;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import com.campusbook.campusbook.dto.HallAvailabilityResponse;
+import com.campusbook.campusbook.entity.Booking;
+import com.campusbook.campusbook.repository.BookingRepository;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
+
+import java.util.List;
+
+@Service
+public class HallService {
+
+    @Autowired
+    private HallRepository hallRepository;
+    @Autowired
+    private BookingRepository bookingRepository;
+    @Autowired
+    private SubscriptionCatalog subscriptionCatalog;
+
+    public Hall createHall(Hall hall, User admin) {
+        hallRepository.findByRoomCode(hall.getRoomCode()).ifPresent(existing -> {
+            throw new IllegalArgumentException("Room code already exists");
+        });
+
+        hall.setInstitution(admin.getInstitution());
+        enforceHallLimit(admin.getInstitution());
+
+        return hallRepository.save(hall);
+    }
+
+    public List<Hall> getAllHalls() {
+        return hallRepository.findAll();
+    }
+
+    public List<Hall> getAllActiveHalls() {
+        return hallRepository.findByActiveTrue();
+    }
+
+    public Hall getHallById(Long id) {
+        return hallRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
+    }
+
+    public HallAvailabilityResponse getAvailability(Long hallId, LocalDate date) {
+    // confirms the hall exists — reuses your existing not-found handling
+    getHallById(hallId);
+
+    LocalDateTime dayStart = date.atStartOfDay();
+    LocalDateTime dayEnd = dayStart.plusDays(1);
+
+    List<Booking> bookings = bookingRepository.findApprovedBookingsForHallOnDate(hallId, dayStart, dayEnd);
+
+    List<HallAvailabilityResponse.OccupiedSlot> occupiedSlots = bookings.stream()
+            .map(b -> new HallAvailabilityResponse.OccupiedSlot(
+                    b.getStartTime(),
+                    b.getEndTime(),
+                    b.getUser().getFullName()
+            ))
+            .collect(Collectors.toList());
+
+    return new HallAvailabilityResponse(hallId, date, occupiedSlots);
+}
+
+    public Hall getHallByRoomCode(String roomCode) {
+        return hallRepository.findByRoomCode(roomCode)
+                .orElseThrow(() -> new IllegalArgumentException("Hall not found: " + roomCode));
+    }
+
+    public Hall updateHall(Long id, Hall updatedHall) {
+        Hall hall = getHallById(id);
+        hallRepository.findByRoomCode(updatedHall.getRoomCode()).ifPresent(existing -> {
+            if (!existing.getId().equals(id)) {
+                throw new IllegalArgumentException("Room code already exists");
+            }
+        });
+        hall.setBlock(updatedHall.getBlock());
+        hall.setRoomCode(updatedHall.getRoomCode());
+        hall.setCapacity(updatedHall.getCapacity());
+        hall.setHasProjector(updatedHall.isHasProjector());
+        hall.setHasAC(updatedHall.isHasAC());
+        hall.setHasMicrophone(updatedHall.isHasMicrophone());
+        hall.setActive(updatedHall.isActive());
+        return hallRepository.save(hall);
+    }
+
+    public Hall disableHall(Long id) {
+        Hall hall = getHallById(id);
+        hall.setActive(false);
+        return hallRepository.save(hall);
+    }
+
+    private void enforceHallLimit(com.campusbook.campusbook.entity.Institution institution) {
+        Integer limit = subscriptionCatalog.forTier(institution.getTier()).activeHallLimit();
+        if (limit == null) return; // unlimited tier
+
+        long activeCount = hallRepository.countByInstitutionIdAndActiveTrue(institution.getId());
+        if (activeCount >= limit) {
+            throw new SubscriptionLimitExceededException(
+                    "Your plan allows a maximum of " + limit + " active rooms. Upgrade to Campus Pro for unlimited rooms."
+            );
+        }
+    }
+}
