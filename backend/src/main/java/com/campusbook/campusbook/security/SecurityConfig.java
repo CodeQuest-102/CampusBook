@@ -47,9 +47,24 @@ public class SecurityConfig {
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()
             )
+            // Missing/invalid/expired token → 401 (not the Spring default of 403).
+            // The app treats 401 as "session expired" and signs the user out, so a
+            // stale JWT must surface as 401 for that flow to work.
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(this::unauthorized))
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /** JSON 401 in the same shape as ErrorResponse, for unauthenticated requests. */
+    private void unauthorized(jakarta.servlet.http.HttpServletRequest request,
+                              jakarta.servlet.http.HttpServletResponse response,
+                              org.springframework.security.core.AuthenticationException e)
+            throws java.io.IOException {
+        response.setStatus(org.springframework.http.HttpStatus.UNAUTHORIZED.value());
+        response.setContentType("application/json");
+        response.getWriter().write(
+                "{\"status\":401,\"message\":\"Authentication required. Please log in.\"}");
     }
 
     /**
