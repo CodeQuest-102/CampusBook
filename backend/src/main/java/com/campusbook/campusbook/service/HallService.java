@@ -1,6 +1,7 @@
 package com.campusbook.campusbook.service;
 
 import com.campusbook.campusbook.entity.Hall;
+import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.HallRepository;
@@ -17,6 +18,13 @@ import java.util.stream.Collectors;
 
 import java.util.List;
 
+/**
+ * All reads and writes are scoped to the acting user's institution. A hall
+ * belongs to exactly one campus, and an admin at campus A must never see or
+ * mutate campus B's rooms — that isolation is what makes the multi-campus
+ * (Enterprise) model meaningful and is enforced here rather than trusted to
+ * the caller.
+ */
 @Service
 public class HallService {
 
@@ -28,9 +36,11 @@ public class HallService {
     private SubscriptionCatalog subscriptionCatalog;
 
     public Hall createHall(Hall hall, User admin) {
-        hallRepository.findByRoomCode(hall.getRoomCode()).ifPresent(existing -> {
-            throw new IllegalArgumentException("Room code already exists");
-        });
+        Long institutionId = admin.getInstitution().getId();
+        hallRepository.findByInstitutionIdAndRoomCode(institutionId, hall.getRoomCode())
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Room code already exists");
+                });
 
         hall.setInstitution(admin.getInstitution());
         enforceHallLimit(admin.getInstitution());
@@ -38,51 +48,59 @@ public class HallService {
         return hallRepository.save(hall);
     }
 
-    public List<Hall> getAllHalls() {
-        return hallRepository.findAll();
+    /** Every hall (active or not) for the acting admin's institution. */
+    public List<Hall> getAllHalls(User actor) {
+        return hallRepository.findByInstitutionId(actor.getInstitution().getId());
     }
 
-    public List<Hall> getAllActiveHalls() {
-        return hallRepository.findByActiveTrue();
+    /** Active, bookable halls for the acting user's institution. */
+    public List<Hall> getActiveHalls(User actor) {
+        return hallRepository.findByInstitutionIdAndActiveTrue(actor.getInstitution().getId());
     }
 
+    /** Raw lookup with no scoping — internal callers only. */
     public Hall getHallById(Long id) {
         return hallRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
     }
 
-    public HallAvailabilityResponse getAvailability(Long hallId, LocalDate date) {
-    // confirms the hall exists — reuses your existing not-found handling
-    getHallById(hallId);
-
-    LocalDateTime dayStart = date.atStartOfDay();
-    LocalDateTime dayEnd = dayStart.plusDays(1);
-
-    List<Booking> bookings = bookingRepository.findApprovedBookingsForHallOnDate(hallId, dayStart, dayEnd);
-
-    List<HallAvailabilityResponse.OccupiedSlot> occupiedSlots = bookings.stream()
-            .map(b -> new HallAvailabilityResponse.OccupiedSlot(
-                    b.getStartTime(),
-                    b.getEndTime(),
-                    b.getUser().getFullName()
-            ))
-            .collect(Collectors.toList());
-
-    return new HallAvailabilityResponse(hallId, date, occupiedSlots);
-}
-
-    public Hall getHallByRoomCode(String roomCode) {
-        return hallRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new IllegalArgumentException("Hall not found: " + roomCode));
+    /** Lookup that rejects a hall belonging to another institution with a 403. */
+    public Hall getHallForUser(Long id, User actor) {
+        Hall hall = getHallById(id);
+        assertSameInstitution(hall, actor);
+        return hall;
     }
 
-    public Hall updateHall(Long id, Hall updatedHall) {
+    public HallAvailabilityResponse getAvailability(Long hallId, LocalDate date, User actor) {
+        // confirms the hall exists and belongs to the caller's institution
+        getHallForUser(hallId, actor);
+
+        LocalDateTime dayStart = date.atStartOfDay();
+        LocalDateTime dayEnd = dayStart.plusDays(1);
+
+        List<Booking> bookings = bookingRepository.findApprovedBookingsForHallOnDate(hallId, dayStart, dayEnd);
+
+        List<HallAvailabilityResponse.OccupiedSlot> occupiedSlots = bookings.stream()
+                .map(b -> new HallAvailabilityResponse.OccupiedSlot(
+                        b.getStartTime(),
+                        b.getEndTime(),
+                        b.getUser().getFullName()
+                ))
+                .collect(Collectors.toList());
+
+        return new HallAvailabilityResponse(hallId, date, occupiedSlots);
+    }
+
+    public Hall updateHall(Long id, Hall updatedHall, User actor) {
         Hall hall = getHallById(id);
-        hallRepository.findByRoomCode(updatedHall.getRoomCode()).ifPresent(existing -> {
-            if (!existing.getId().equals(id)) {
-                throw new IllegalArgumentException("Room code already exists");
-            }
-        });
+        assertSameInstitution(hall, actor);
+
+        hallRepository.findByInstitutionIdAndRoomCode(actor.getInstitution().getId(), updatedHall.getRoomCode())
+                .ifPresent(existing -> {
+                    if (!existing.getId().equals(id)) {
+                        throw new IllegalArgumentException("Room code already exists");
+                    }
+                });
         hall.setBlock(updatedHall.getBlock());
         hall.setRoomCode(updatedHall.getRoomCode());
         hall.setCapacity(updatedHall.getCapacity());
@@ -93,13 +111,20 @@ public class HallService {
         return hallRepository.save(hall);
     }
 
-    public Hall disableHall(Long id) {
+    public Hall disableHall(Long id, User actor) {
         Hall hall = getHallById(id);
+        assertSameInstitution(hall, actor);
         hall.setActive(false);
         return hallRepository.save(hall);
     }
 
-    private void enforceHallLimit(com.campusbook.campusbook.entity.Institution institution) {
+    private void assertSameInstitution(Hall hall, User actor) {
+        if (!hall.getInstitution().getId().equals(actor.getInstitution().getId())) {
+            throw new SecurityException("This room belongs to another institution");
+        }
+    }
+
+    private void enforceHallLimit(Institution institution) {
         Integer limit = subscriptionCatalog.forTier(institution.getTier()).activeHallLimit();
         if (limit == null) return; // unlimited tier
 

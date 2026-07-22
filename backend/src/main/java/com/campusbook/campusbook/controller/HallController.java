@@ -25,8 +25,8 @@ public class HallController {
     private HallService hallService;
 
     @GetMapping
-    public ResponseEntity<List<HallResponse>> listActiveHalls() {
-        List<HallResponse> halls = hallService.getAllActiveHalls().stream()
+    public ResponseEntity<List<HallResponse>> listActiveHalls(@AuthenticationPrincipal User user) {
+        List<HallResponse> halls = hallService.getActiveHalls(user).stream()
                 .map(HallResponse::from)
                 .toList();
         return ResponseEntity.ok(halls);
@@ -34,16 +34,17 @@ public class HallController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin")
-    public ResponseEntity<List<HallResponse>> listAllHalls() {
-        List<HallResponse> halls = hallService.getAllHalls().stream()
+    public ResponseEntity<List<HallResponse>> listAllHalls(@AuthenticationPrincipal User user) {
+        List<HallResponse> halls = hallService.getAllHalls(user).stream()
                 .map(HallResponse::from)
                 .toList();
         return ResponseEntity.ok(halls);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<HallResponse> getHall(@PathVariable Long id) {
-        return ResponseEntity.ok(HallResponse.from(hallService.getHallById(id)));
+    public ResponseEntity<HallResponse> getHall(@AuthenticationPrincipal User user,
+                                                @PathVariable Long id) {
+        return ResponseEntity.ok(HallResponse.from(hallService.getHallForUser(id, user)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -56,16 +57,18 @@ public class HallController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<HallResponse> updateHall(@PathVariable Long id,
+    public ResponseEntity<HallResponse> updateHall(@AuthenticationPrincipal User user,
+                                                    @PathVariable Long id,
                                                     @Valid @RequestBody HallRequest request) {
         Hall hall = toHall(request);
-        return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall)));
+        return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall, user)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<HallResponse> disableHall(@PathVariable Long id) {
-        return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id)));
+    public ResponseEntity<HallResponse> disableHall(@AuthenticationPrincipal User user,
+                                                     @PathVariable Long id) {
+        return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id, user)));
     }
 
     private Hall toHall(HallRequest request) {
@@ -83,8 +86,9 @@ public class HallController {
 
     @GetMapping("/{id}/availability")
     public ResponseEntity<HallAvailabilityResponse> getHallAvailability(
+            @AuthenticationPrincipal User user,
             @PathVariable Long id,
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ResponseEntity.ok(hallService.getAvailability(id, date));
+        return ResponseEntity.ok(hallService.getAvailability(id, date, user));
     }
 }

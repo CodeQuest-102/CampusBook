@@ -16,6 +16,19 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByStatusOrderByCreatedAtAsc(BookingStatus status);
 
+    /* ---- institution-scoped finders (multi-campus isolation) ---- */
+
+    List<Booking> findByHallInstitutionIdOrderByCreatedAtDesc(Long institutionId);
+
+    List<Booking> findByHallInstitutionIdAndStatusOrderByCreatedAtAsc(Long institutionId, BookingStatus status);
+
+    List<Booking> findByHallInstitutionIdAndStartTimeBetween(
+            Long institutionId, LocalDateTime start, LocalDateTime end);
+
+    long countByHallInstitutionId(Long institutionId);
+
+    long countByHallInstitutionIdAndStatus(Long institutionId, BookingStatus status);
+
     List<Booking> findByStartTimeBetween(LocalDateTime start, LocalDateTime end);
 
     List<Booking> findByUserIdOrderByStartTimeDesc(Long userId);

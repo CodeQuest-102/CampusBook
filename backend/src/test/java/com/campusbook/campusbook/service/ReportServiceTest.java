@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,13 +59,14 @@ class ReportServiceTest {
                 booking(gf2, thu, BookingStatus.PENDING)
         );
 
-        when(bookingRepository.findByStartTimeBetween(any(), any())).thenReturn(bookings);
-        when(hallRepository.count()).thenReturn(5L);
-        when(bookingRepository.count()).thenReturn(3L);
-        when(bookingRepository.countByStatus(BookingStatus.PENDING)).thenReturn(1L);
-        when(hallRepository.findByActiveTrue()).thenReturn(List.of(gf1, gf2));
+        when(bookingRepository.findByHallInstitutionIdAndStartTimeBetween(eq(1L), any(), any()))
+                .thenReturn(bookings);
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(5L);
+        when(bookingRepository.countByHallInstitutionId(1L)).thenReturn(3L);
+        when(bookingRepository.countByHallInstitutionIdAndStatus(1L, BookingStatus.PENDING)).thenReturn(1L);
+        when(hallRepository.countByInstitutionIdAndActiveTrue(1L)).thenReturn(2L);
 
-        ReportsResponse r = reportService.buildSummary("month");
+        ReportsResponse r = reportService.buildSummary(1L, "month");
 
         assertThat(r.overview().totalRooms()).isEqualTo(5L);
         assertThat(r.overview().pendingRequests()).isEqualTo(1L);
@@ -77,12 +79,13 @@ class ReportServiceTest {
 
     @Test
     void summary_handlesNoBookings() {
-        when(bookingRepository.findByStartTimeBetween(any(), any())).thenReturn(List.of());
-        when(hallRepository.count()).thenReturn(0L);
-        when(bookingRepository.count()).thenReturn(0L);
-        when(bookingRepository.countByStatus(BookingStatus.PENDING)).thenReturn(0L);
+        when(bookingRepository.findByHallInstitutionIdAndStartTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of());
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(0L);
+        when(bookingRepository.countByHallInstitutionId(1L)).thenReturn(0L);
+        when(bookingRepository.countByHallInstitutionIdAndStatus(1L, BookingStatus.PENDING)).thenReturn(0L);
 
-        ReportsResponse r = reportService.buildSummary("week");
+        ReportsResponse r = reportService.buildSummary(1L, "week");
 
         assertThat(r.mostBookedRoom().count()).isZero();
         assertThat(r.peakDay().count()).isZero();

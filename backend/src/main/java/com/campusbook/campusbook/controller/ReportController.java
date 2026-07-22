@@ -26,8 +26,8 @@ public class ReportController {
     /** Basic system counts — available to all admins on any plan. */
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/overview")
-    public ResponseEntity<ReportsResponse.Overview> overview() {
-        return ResponseEntity.ok(reportService.buildOverview());
+    public ResponseEntity<ReportsResponse.Overview> overview(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(reportService.buildOverview(user.getInstitution().getId()));
     }
 
     /** Full analytics dashboard — a Campus Pro feature. */
@@ -42,7 +42,7 @@ public class ReportController {
             throw new SubscriptionLimitExceededException(
                     "The analytics dashboard is a Campus Pro feature. Upgrade to unlock reporting.");
         }
-        return ResponseEntity.ok(reportService.buildSummary(period));
+        return ResponseEntity.ok(reportService.buildSummary(user.getInstitution().getId(), period));
     }
 
     /** Export the period's bookings as CSV — a Campus Pro feature. */
@@ -57,7 +57,7 @@ public class ReportController {
             throw new SubscriptionLimitExceededException(
                     "Report export is a Campus Pro feature. Upgrade to unlock reporting.");
         }
-        String csv = reportService.exportBookingsCsv(period);
+        String csv = reportService.exportBookingsCsv(user.getInstitution().getId(), period);
         String filename = "campusbook-report-" + period.toLowerCase() + ".csv";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")

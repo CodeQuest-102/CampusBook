@@ -39,39 +39,41 @@ public class ReportService {
         };
     }
 
-    public ReportsResponse buildSummary(String period) {
+    public ReportsResponse buildSummary(Long institutionId, String period) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime rangeStart = rangeStartFor(period);
         long rangeDays = Math.max(1, ChronoUnit.DAYS.between(rangeStart.toLocalDate(), now.toLocalDate()) + 1);
 
-        // Non-cancelled bookings that start within the selected period.
-        List<Booking> bookings = bookingRepository.findByStartTimeBetween(rangeStart, now).stream()
+        // Non-cancelled bookings at this institution that start within the period.
+        List<Booking> bookings = bookingRepository
+                .findByHallInstitutionIdAndStartTimeBetween(institutionId, rangeStart, now).stream()
                 .filter(b -> b.getStatus() != BookingStatus.CANCELLED)
                 .toList();
 
-        ReportsResponse.Overview overview = buildOverview();
+        ReportsResponse.Overview overview = buildOverview(institutionId);
 
         ReportsResponse.LabelledCount mostBookedRoom = mostBookedRoom(bookings);
         ReportsResponse.LabelledCount peakDay = peakDay(bookings);
-        int utilizationRate = utilizationRate(bookings, rangeDays);
+        int utilizationRate = utilizationRate(institutionId, bookings, rangeDays);
         List<ReportsResponse.SeriesPoint> bookingsOverTime = bookingsByWeekday(bookings);
 
         return new ReportsResponse(overview, mostBookedRoom, peakDay, utilizationRate, bookingsOverTime);
     }
 
-    /** Basic system counts — available to all admins regardless of plan. */
-    public ReportsResponse.Overview buildOverview() {
+    /** Basic system counts for one institution — available to all admins regardless of plan. */
+    public ReportsResponse.Overview buildOverview(Long institutionId) {
         return new ReportsResponse.Overview(
-                hallRepository.count(),
-                bookingRepository.count(),
-                bookingRepository.countByStatus(BookingStatus.PENDING)
+                hallRepository.countByInstitutionId(institutionId),
+                bookingRepository.countByHallInstitutionId(institutionId),
+                bookingRepository.countByHallInstitutionIdAndStatus(institutionId, BookingStatus.PENDING)
         );
     }
 
     /** Bookings in the selected period as a CSV document (Campus Pro feature). */
-    public String exportBookingsCsv(String period) {
+    public String exportBookingsCsv(Long institutionId, String period) {
         List<Booking> bookings = bookingRepository
-                .findByStartTimeBetween(rangeStartFor(period), LocalDateTime.now()).stream()
+                .findByHallInstitutionIdAndStartTimeBetween(institutionId, rangeStartFor(period), LocalDateTime.now())
+                .stream()
                 .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
                 .toList();
 
@@ -133,8 +135,8 @@ public class ReportService {
      * Rough estimate: total approved booked hours over the period as a share of the
      * theoretical capacity (active halls × bookable hours × days). Capped at 100.
      */
-    private int utilizationRate(List<Booking> bookings, long rangeDays) {
-        long activeHalls = hallRepository.findByActiveTrue().size();
+    private int utilizationRate(Long institutionId, List<Booking> bookings, long rangeDays) {
+        long activeHalls = hallRepository.countByInstitutionIdAndActiveTrue(institutionId);
         if (activeHalls == 0) return 0;
 
         double bookedHours = bookings.stream()

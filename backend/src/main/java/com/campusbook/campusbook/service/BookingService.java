@@ -46,6 +46,10 @@ public class BookingService {
             throw new IllegalArgumentException("This hall is not available for booking");
         }
 
+        // A user may only book rooms at their own campus — the hall id is client
+        // input on an authenticated endpoint, so it can't be trusted to be local.
+        assertSameInstitution(hall, booking.getUser());
+
         validateAttendanceFitsHall(booking.getAttendance(), hall);
 
         List<Booking> conflicts = bookingRepository.findOverlappingBookings(
@@ -106,6 +110,8 @@ public class BookingService {
             throw new IllegalArgumentException("This hall is not available for booking");
         }
 
+        assertSameInstitution(hall, user);
+
         // Checked once for the whole series: the hall and headcount don't vary
         // per occurrence, so skipping each one for the same reason is pointless.
         validateAttendanceFitsHall(attendance, hall);
@@ -160,6 +166,7 @@ public class BookingService {
 
     public Booking approveBooking(Long bookingId, User admin) {
         Booking booking = getBookingById(bookingId);
+        assertSameInstitution(booking.getHall(), admin);
 
         List<Booking> conflicts = bookingRepository.findOverlappingBookings(
             booking.getHall().getId(),
@@ -189,6 +196,7 @@ public class BookingService {
 
     public Booking rejectBooking(Long bookingId, User admin, String reason) {
         Booking booking = getBookingById(bookingId);
+        assertSameInstitution(booking.getHall(), admin);
         booking.setStatus(BookingStatus.REJECTED);
         booking.setApprovedBy(admin);
         booking.setRejectionReason(reason);
@@ -213,6 +221,10 @@ public class BookingService {
 
         if (!ownsBooking && !isAdmin) {
             throw new SecurityException("You can only cancel your own bookings");
+        }
+        // An admin cancelling someone else's booking may only reach their own campus.
+        if (isAdmin && !ownsBooking) {
+            assertSameInstitution(booking.getHall(), actor);
         }
 
         if (booking.getEndTime().isBefore(LocalDateTime.now())) {
@@ -251,6 +263,9 @@ public class BookingService {
         if (!ownsBooking && !isAdmin) {
             throw new SecurityException("You can only reschedule your own bookings");
         }
+        if (isAdmin && !ownsBooking) {
+            assertSameInstitution(booking.getHall(), actor);
+        }
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             throw new IllegalStateException("Cancelled bookings cannot be rescheduled");
         }
@@ -288,16 +303,30 @@ public class BookingService {
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
     }
 
-    public List<Booking> getAllBookings() {
-        return bookingRepository.findAll();
+    /** Admin view — every booking at the actor's institution, newest first. */
+    public List<Booking> getAllBookings(User actor) {
+        return bookingRepository.findByHallInstitutionIdOrderByCreatedAtDesc(
+                actor.getInstitution().getId());
     }
 
-    public List<Booking> getBookingsByStatus(BookingStatus status) {
-        return bookingRepository.findByStatusOrderByCreatedAtAsc(status);
+    /** Admin view — bookings in a given status at the actor's institution. */
+    public List<Booking> getBookingsByStatus(User actor, BookingStatus status) {
+        return bookingRepository.findByHallInstitutionIdAndStatusOrderByCreatedAtAsc(
+                actor.getInstitution().getId(), status);
     }
 
     public List<Booking> getBookingsByUser(Long userId) {
         return bookingRepository.findByUserIdOrderByStartTimeDesc(userId);
+    }
+
+    /**
+     * A booking's hall fixes its institution. An admin (or booker) may only act
+     * on bookings and rooms at their own campus; anything else is a 403.
+     */
+    private void assertSameInstitution(Hall hall, User actor) {
+        if (!hall.getInstitution().getId().equals(actor.getInstitution().getId())) {
+            throw new SecurityException("This resource belongs to another institution");
+        }
     }
 
     /**

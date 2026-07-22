@@ -64,8 +64,8 @@ public class BookingController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public ResponseEntity<List<BookingResponse>> getAllBookings() {
-        List<BookingResponse> bookings = bookingService.getAllBookings().stream()
+    public ResponseEntity<List<BookingResponse>> getAllBookings(@AuthenticationPrincipal User user) {
+        List<BookingResponse> bookings = bookingService.getAllBookings(user).stream()
                 .map(BookingResponse::from)
                 .toList();
         return ResponseEntity.ok(bookings);
@@ -73,8 +73,8 @@ public class BookingController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/pending")
-    public ResponseEntity<List<BookingResponse>> getPendingBookings() {
-        List<BookingResponse> bookings = bookingService.getBookingsByStatus(BookingStatus.PENDING).stream()
+    public ResponseEntity<List<BookingResponse>> getPendingBookings(@AuthenticationPrincipal User user) {
+        List<BookingResponse> bookings = bookingService.getBookingsByStatus(user, BookingStatus.PENDING).stream()
                 .map(BookingResponse::from)
                 .toList();
         return ResponseEntity.ok(bookings);

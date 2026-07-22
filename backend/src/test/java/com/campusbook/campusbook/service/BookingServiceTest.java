@@ -63,11 +63,24 @@ class BookingServiceTest {
     }
 
     private User user(long id) {
+        return user(id, institution());
+    }
+
+    private User user(long id, Institution institution) {
         User u = new User();
         u.setId(id);
         u.setFullName("Test User");
         u.setRole(Role.STUDENT_LEADER);
+        u.setInstitution(institution);
         return u;
+    }
+
+    private Institution otherInstitution() {
+        Institution i = new Institution();
+        i.setId(99L);
+        i.setName("Other Campus");
+        i.setTier(SubscriptionTier.FREE);
+        return i;
     }
 
     private Booking booking(Hall hall, User user, LocalDateTime start, LocalDateTime end) {
@@ -185,6 +198,40 @@ class BookingServiceTest {
         assertThatThrownBy(() ->
                 bookingService.rescheduleBooking(10L, stranger, newStart, newStart.plusHours(2)))
                 .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void approve_rejectsAdminFromAnotherInstitution() {
+        Hall hall = activeHall(institution()); // institution id 1
+        Booking pending = booking(hall, user(1L),
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(2));
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(pending));
+
+        User foreignAdmin = user(50L, otherInstitution()); // institution id 99
+        foreignAdmin.setRole(Role.ADMIN);
+
+        assertThatThrownBy(() -> bookingService.approveBooking(10L, foreignAdmin))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("another institution");
+
+        verify(bookingRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void createBooking_rejectsHallAtAnotherInstitution() {
+        Hall hall = activeHall(institution()); // institution id 1
+        User foreignUser = user(7L, otherInstitution()); // institution id 99
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, foreignUser, start, start.plusHours(2));
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("another institution");
+
+        verify(bookingRepository, never()).save(any());
     }
 
     @Test
