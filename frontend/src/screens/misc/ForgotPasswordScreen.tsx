@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TopBar, TextField, Button } from '../../components';
+import { Screen, TopBar, TextField, Button, KeyboardAvoider } from '../../components';
 import { colors, fontWeight, radius, spacing, typography } from '../../theme';
 import { authApi, ApiError } from '../../api';
+import { digitsOnly } from '../../validation';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ForgotPassword'>;
@@ -48,7 +49,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <>
+    <KeyboardAvoider>
       <TopBar variant="title" title="Forgot Password" onBack={() => navigation.goBack()} />
       <Screen scroll>
         <View style={styles.iconWrap}>
@@ -91,10 +92,12 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
             <TextField
               label="Staff / Student ID"
               icon="id-card-outline"
-              placeholder="e.g. STU001"
-              autoCapitalize="characters"
+              placeholder="e.g. 20551234"
+              keyboardType="number-pad"
               value={staffOrStudentId}
-              onChangeText={setStaffOrStudentId}
+              // No length rule here — the role isn't known on this screen, so
+              // the server's match against the stored ID stays the real gate.
+              onChangeText={(t) => setStaffOrStudentId(digitsOnly(t))}
             />
             <TextField
               label="New Password"
@@ -119,7 +122,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
           </>
         )}
       </Screen>
-    </>
+    </KeyboardAvoider>
   );
 }
 

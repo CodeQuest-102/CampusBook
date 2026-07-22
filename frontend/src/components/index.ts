@@ -8,6 +8,7 @@ export { default as BottomNav } from './BottomNav';
 export { default as Card } from './Card';
 export { default as Avatar } from './Avatar';
 export { default as Screen } from './Screen';
+export { default as KeyboardAvoider } from './KeyboardAvoider';
 export { SectionHeader, SearchBar, StatTile, QuickAction, DetailRow, Chip, cardStyle } from './ui';
 export {
   CalendarPicker,

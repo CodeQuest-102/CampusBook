@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TextField, Button } from '../components';
+import { Screen, TextField, Button, KeyboardAvoider } from '../components';
 import { colors, fontWeight, spacing, typography } from '../theme';
 import { useApp } from '../navigation/AppContext';
 import { ApiError } from '../api';
@@ -35,7 +35,8 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen scroll>
+    <KeyboardAvoider>
+      <Screen scroll>
       <View style={styles.header}>
         <Text style={styles.title}>Welcome Back!</Text>
         <Text style={styles.subtitle}>Login to your account</Text>
@@ -79,7 +80,8 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.footerLink}>Sign up</Text>
         </TouchableOpacity>
       </View>
-    </Screen>
+      </Screen>
+    </KeyboardAvoider>
   );
 }
 

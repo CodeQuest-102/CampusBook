@@ -114,6 +114,41 @@ class BookingServiceTest {
     }
 
     @Test
+    void createBooking_rejectsMoreAttendeesThanTheHallSeats() {
+        Hall hall = activeHall(institution());
+        hall.setCapacity(30);
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, user(1L), start, start.plusHours(2));
+        b.setAttendance(31);
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("seats 30");
+
+        verify(bookingRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void createBooking_allowsAttendanceUpToCapacity() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        hall.setCapacity(30);
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, user(1L), start, start.plusHours(2));
+        b.setAttendance(30); // exactly full is fine
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(bookingService.createBooking(b).getAttendance()).isEqualTo(30);
+    }
+
+    @Test
     void reschedule_resetsToPendingAndNotifiesAdmins() {
         Institution inst = institution();
         Hall hall = activeHall(inst);

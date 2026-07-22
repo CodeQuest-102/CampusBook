@@ -1,13 +1,30 @@
 # CampusBook — Testing Guide
 
-This app is UI-only (no backend). All data is static, from
-[`src/data/placeholder.ts`](src/data/placeholder.ts). The goal of testing is to
-confirm every screen renders and every navigation path works — not to check
-saved data (nothing persists).
+The app talks to the real Spring Boot API — there's no static data or fake role
+selector anymore. To test it you need **the backend running** and then the Expo
+app pointed at it. Data persists in PostgreSQL, so what you create sticks around.
 
 ---
 
-## 1. How to run it
+## 1. Start the backend first
+
+From the repo root:
+
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+
+It comes up on `http://localhost:8080` and, on first run, seeds an institution,
+demo rooms, demo users, and demo bookings. Swagger UI is at
+`http://localhost:8080/swagger-ui.html` if you want to poke the API directly.
+
+You need PostgreSQL running with a `campusbook` database — see the root
+[README](../README.md#1-database) for the one-time setup.
+
+---
+
+## 2. Then run the app
 
 Install once:
 
@@ -19,103 +36,102 @@ Then pick a target:
 
 | Target | Command | Notes |
 | --- | --- | --- |
-| **iOS Simulator** (recommended) | `npm run ios` | Needs Xcode. Best fidelity to the mockups. |
+| **iOS Simulator** (recommended) | `npm run ios` | Needs Xcode. Reaches the backend at `localhost:8080` automatically. |
 | **Android Emulator** | `npm run android` | Needs Android Studio + a running emulator. |
-| **Real phone** | `npm start`, then scan the QR code in **Expo Go** | Install “Expo Go” from the App/Play Store first. |
-| **Web** | `npm run web` | Convenient, but see the Known Issues note below. |
+| **Real phone** | `npm start`, then scan the QR in **Expo Go** | Set `EXPO_PUBLIC_API_URL` to your machine's LAN IP first — see [`.env.example`](.env.example). `localhost` on the phone means the phone, not your Mac. |
 
-> **Known issue (web):** the browser build is currently showing a blank screen
-> while it's being root-caused. **Test on a device or simulator** (Expo Go / iOS
-> / Android) for now — that's the real target for a React Native app. If you only
-> have web available, tell me and I'll prioritise the web fix.
-
----
-
-## 2. Switching roles
-
-There's no real login, so the **Login screen has a Student / Staff / Admin
-selector** at the top. Pick a role, tap **Login**, and you land in that role's
-app. To change roles later: **Profile tab → Logout → pick another role**.
+> **Physical device gotcha:** the phone and your computer must be on the same
+> Wi-Fi, and the backend has to be reachable at your machine's LAN IP (e.g.
+> `http://192.168.1.20:8080`). If login spins forever with a "Network error", the
+> app can't see the backend — check the IP and that the backend is actually up.
 
 ---
 
-## 3. What to walk through
+## 3. Logging in
 
-Go role by role. For each screen, check: **(a)** it renders without a crash,
-**(b)** it roughly matches the mockup, **(c)** every button/tab goes somewhere
-sensible.
+Log in with a **seeded account** (from the root README). Either the email or the
+staff/student ID works as the handle:
 
-### Onboarding + auth (all roles)
-- [ ] Splash shows, then auto-advances
-- [ ] Onboarding: swipe through all 3 slides; dots track; **Skip** and **Next/Get Started** work
-- [ ] Sign Up: fields accept input; the Terms checkbox enables the button
-- [ ] Login: role selector highlights; **Login** enters the app
+| Role | Email | Staff / Student ID | Password |
+| --- | --- | --- | --- |
+| Admin | `admin@campusbook.local` | `ADMIN001` | `admin12345` |
+| Lecturer | `lecturer@campusbook.local` | `200912345` | `lecturer12345` |
+| Student | `student@campusbook.local` | `20551234` | `student12345` |
 
-### Student
-- [ ] Dashboard: greeting, search, promo card, Quick Stats (2 / 1 / 3), Quick Actions
-- [ ] Browse Rooms → filter chips → tap a room
-- [ ] Room Details → **Book Now** (should be disabled for the "maintenance" room, K3.04)
-- [ ] Booking Form → **Submit Request**
-- [ ] Confirmation screen → **View My Bookings** / **Back to Home**
-- [ ] Bookings tab: status filter chips; tap a booking → Booking Details
-- [ ] Calendar: tap dates (16 & 20 May have dots); day events show; **+** button
-- [ ] Day Schedule (from a calendar event): time rail with blocks
-- [ ] Notifications: colored icons per type; unread dots
-- [ ] Profile: menu rows; **Logout** returns to Login
+To switch roles, **Profile tab → Logout**, then log in as another account. You
+can also **Sign Up** a fresh Student Leader or Lecturer — KNUST email required
+(`…@knust.edu.gh`), student IDs are 8 digits and staff IDs are 9. Admin accounts
+can't be self-registered; the server rejects it.
 
-### Staff
-- [ ] Dashboard: Overview stats (5 / 2 / 8), Recent Bookings, Quick Actions
-- [ ] Same Browse → Details → Book flow as student
+---
+
+## 4. What to walk through
+
+Go role by role. For each screen check: **(a)** it renders without a crash,
+**(b)** the data matches what's actually in the backend, **(c)** actions round-trip
+(create something, pull-to-refresh, confirm it's still there).
+
+### Auth
+- [ ] Splash → Onboarding (swipe 3 slides, Skip/Next work) → Login
+- [ ] Login with a wrong password shows an error, not a crash
+- [ ] Sign Up: non-KNUST email is rejected; wrong-length ID is rejected; a valid
+      sign-up lands you in the app
+- [ ] Forgot Password: request a code, read it from the **backend console log**
+      (mail is off by default), set a new password, log in with it
+
+### Student / Lecturer
+- [ ] Dashboard: greeting, quick stats, unread notification count
+- [ ] Browse Rooms: search filters the list; filter sheet (capacity + equipment
+      + time window) narrows results server-side
+- [ ] Room Details → Book Now → Booking Form → Submit → the booking appears under
+      **My Bookings** as *Pending*
+- [ ] My Bookings: status filter; open a booking → Details → the history timeline
+      shows "created"; cancel/reschedule work
+- [ ] Calendar / Day Schedule: approved bookings show on the right dates
+- [ ] Notifications: unread dots; mark-all-read clears the badge
+- [ ] Export a booking as `.ics` and open it in your calendar app
 
 ### Admin
-- [ ] Dashboard: blue System Overview (45 / 128 / 12), Quick Actions
-- [ ] Requests tab: All / Staff / Students filters; tap **View** on a request
-- [ ] Request Details: requester info; **Reject** (red) / **Approve** (green)
-- [ ] Room Management (from dashboard): room list, **Add Room**, edit/delete icons
-- [ ] Reports tab: Most Booked / Peak Day cards, Utilization bar (72%), bar chart
-
-### Design system spot-checks
-- [ ] Buttons/active states use action blue `#0340CF`
-- [ ] Splash background is deep blue `#0034AC`
-- [ ] Status pills: green = available/approved, amber = pending, red = rejected, orange = maintenance
-- [ ] Cards are light-grey, rounded, with a subtle shadow
+- [ ] Dashboard: system overview stats
+- [ ] Pending Requests: All / Staff / Students filters; **select mode** →
+      bulk-approve several at once; if two conflict on the same slot, the result
+      names the one that failed
+- [ ] Request Details: Approve / Reject (with reason); the requester gets a
+      notification and the booking's history updates
+- [ ] Room Management: add / edit / disable a room
+- [ ] Reports (Campus Pro): most-booked, peak day, utilization, bookings-over-time;
+      CSV export downloads
 
 ---
 
-## 4. How to report an issue back to me
+## 5. Reporting an issue back
 
-Paste a message in this format — one block per issue. The more of it you fill
-in, the faster I can fix it:
+Paste one block per issue:
 
 ```
-Screen:    <e.g. Admin → Request Details>
-Role:      <Student | Staff | Admin>
+Screen:    <e.g. Admin → Pending Requests>
+Role:      <Student | Lecturer | Admin>
 Steps:     <what you tapped, in order>
-Expected:  <what you thought would happen / how the mockup looks>
+Expected:  <what you thought would happen>
 Actual:    <what actually happened>
 ```
 
 **Really helpful to include:**
-- A **screenshot** of the screen (drag it into the chat).
-- If something **crashed or went blank**, the error text:
-  - **Device/simulator:** the red error box, or the terminal output where
-    `npm start` is running — copy the lines after `ERROR` / `Uncaught`.
-  - **Web:** open the browser DevTools **Console** tab (⌥⌘J on Chrome/Mac) and
-    copy any red errors.
-
-**Quick shorthand is fine too**, e.g.:
-> "Calendar tab, admin role — the + button overlaps the bottom nav."
-> "Room card status pill for K3.04 is amber but should be orange."
-
-If it's a look-and-feel tweak (spacing, color, wording, icon), just describe it
-in plain language and point at the screen — no template needed.
+- A **screenshot** (drag it into the chat).
+- If it **crashed or went blank**, the red error box on the device, or the lines
+  after `ERROR` in the `npm start` terminal.
+- If it's an **API problem** (data wrong, a request failed), also grab the
+  **backend** terminal output around the same moment — the stack trace there is
+  usually the real story.
 
 ---
 
-## 5. Fast triage checklist (if the whole app is blank/broken)
+## 6. Fast triage (whole app blank / stuck on login)
 
-1. `npm install` completed without errors?
-2. Are you on web? → try a device/simulator instead (see Known Issues).
-3. In the `npm start` terminal, is the bundle building? Look for
-   `Bundled … index.ts (N modules)` vs. a red `ERROR`.
-4. Send me the terminal output + which target (iOS/Android/web) you used.
+1. Is the **backend** actually running on `:8080`? (`curl localhost:8080/api/halls`
+   should return `401`, not "connection refused".)
+2. `npm install` completed without errors?
+3. On a **physical device**? → `EXPO_PUBLIC_API_URL` set to your LAN IP, same Wi-Fi?
+4. In the `npm start` terminal, is the bundle building (`Bundled … index.ts`) or
+   is there a red `ERROR`?
+5. Send both terminals' output (Expo + backend) and which target you used.

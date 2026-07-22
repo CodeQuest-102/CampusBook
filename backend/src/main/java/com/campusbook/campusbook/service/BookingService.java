@@ -46,6 +46,8 @@ public class BookingService {
             throw new IllegalArgumentException("This hall is not available for booking");
         }
 
+        validateAttendanceFitsHall(booking.getAttendance(), hall);
+
         List<Booking> conflicts = bookingRepository.findOverlappingBookings(
             hall.getId(),
             -1L,
@@ -103,6 +105,10 @@ public class BookingService {
         if (!hall.isActive()) {
             throw new IllegalArgumentException("This hall is not available for booking");
         }
+
+        // Checked once for the whole series: the hall and headcount don't vary
+        // per occurrence, so skipping each one for the same reason is pointless.
+        validateAttendanceFitsHall(attendance, hall);
 
         Duration duration = Duration.between(firstStart, firstEnd);
         List<Booking> created = new ArrayList<>();
@@ -292,6 +298,20 @@ public class BookingService {
 
     public List<Booking> getBookingsByUser(Long userId) {
         return bookingRepository.findByUserIdOrderByStartTimeDesc(userId);
+    }
+
+    /**
+     * Attendance is optional, but a stated headcount can't exceed what the room
+     * seats. Capacity lives on the hall, so this can't be a DTO constraint.
+     */
+    private void validateAttendanceFitsHall(Integer attendance, Hall hall) {
+        // Capacity is a nullable column, so a hall with none recorded can't
+        // contradict any headcount — and unboxing it blindly would be an NPE.
+        if (attendance != null && hall.getCapacity() != null && attendance > hall.getCapacity()) {
+            throw new IllegalArgumentException(
+                    hall.getBlock() + " " + hall.getRoomCode() + " seats " + hall.getCapacity()
+                            + ", but " + attendance + " attendees were expected");
+        }
     }
 
     private void validateBookingWindow(LocalDateTime startTime, LocalDateTime endTime) {

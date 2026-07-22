@@ -1,0 +1,151 @@
+package com.campusbook.campusbook.dto;
+
+import com.campusbook.campusbook.enums.Role;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * KNUST IDs are 8 digits for students and 9 for staff. The rule depends on the
+ * submitted role, so it lives in an @AssertTrue on the DTO rather than a
+ * @Pattern on the field.
+ */
+class RegisterRequestTest {
+
+    private static ValidatorFactory factory;
+    private static Validator validator;
+
+    @BeforeAll
+    static void setUp() {
+        factory = Validation.buildDefaultValidatorFactory();
+        validator = factory.getValidator();
+    }
+
+    @AfterAll
+    static void tearDown() {
+        factory.close();
+    }
+
+    private RegisterRequest request(Role role, String id) {
+        RegisterRequest r = new RegisterRequest();
+        r.setFullName("Abubakar Sadiq");
+        r.setEmail("a.sadiq@st.knust.edu.gh");
+        r.setPassword("password123");
+        r.setRole(role);
+        r.setStaffOrStudentId(id);
+        return r;
+    }
+
+    /** Violated property paths, so a failure names the field that broke. */
+    private Set<String> violations(RegisterRequest r) {
+        return validator.validate(r).stream()
+                .map(v -> v.getPropertyPath().toString())
+                .collect(Collectors.toSet());
+    }
+
+    @Test
+    void acceptsAnEightDigitStudentId() {
+        assertTrue(violations(request(Role.STUDENT_LEADER, "20551234")).isEmpty());
+    }
+
+    @Test
+    void acceptsANineDigitStaffId() {
+        assertTrue(violations(request(Role.LECTURER, "200912345")).isEmpty());
+    }
+
+    @Test
+    void rejectsAStudentIdOfStaffLength() {
+        assertEquals(Set.of("staffOrStudentIdValid"), violations(request(Role.STUDENT_LEADER, "200912345")));
+    }
+
+    @Test
+    void rejectsAStaffIdOfStudentLength() {
+        assertEquals(Set.of("staffOrStudentIdValid"), violations(request(Role.LECTURER, "20551234")));
+    }
+
+    @Test
+    void rejectsShortLongAndNonNumericIds() {
+        assertTrue(violations(request(Role.STUDENT_LEADER, "2055123")).contains("staffOrStudentIdValid"));
+        assertTrue(violations(request(Role.STUDENT_LEADER, "205512345")).contains("staffOrStudentIdValid"));
+        assertTrue(violations(request(Role.STUDENT_LEADER, "STU12345")).contains("staffOrStudentIdValid"));
+    }
+
+    /**
+     * /api/auth/register is unauthenticated, so a self-assigned ADMIN role would
+     * be privilege escalation — admin accounts reach room management, request
+     * approval, the user directory, reports and subscription settings.
+     */
+    @Test
+    void rejectsSelfRegistrationAsAdmin() {
+        assertTrue(violations(request(Role.ADMIN, "ADMIN001")).contains("roleSelfRegisterable"));
+    }
+
+    @Test
+    void rejectsAdminEvenWithAnOtherwiseWellFormedId() {
+        assertEquals(Set.of("roleSelfRegisterable"), violations(request(Role.ADMIN, "20551234")));
+    }
+
+    @Test
+    void reportsOnlyTheRoleProblemForAnAdminWithABadId() {
+        // The digit rule is meaningless for a role that can't register at all —
+        // surfacing both would just be noise.
+        assertEquals(Set.of("roleSelfRegisterable"), violations(request(Role.ADMIN, "nope")));
+    }
+
+    @Test
+    void allowsTheTwoSelfRegisterableRoles() {
+        assertTrue(violations(request(Role.STUDENT_LEADER, "20551234")).isEmpty());
+        assertTrue(violations(request(Role.LECTURER, "200912345")).isEmpty());
+    }
+
+    @Test
+    void requiresARole() {
+        // A null role previously reached the controller and NPE'd on getRole().name().
+        assertTrue(violations(request(null, "20551234")).contains("role"));
+    }
+
+    @Test
+    void stillReportsABlankIdAsBlankRatherThanMalformed() {
+        assertEquals(Set.of("staffOrStudentId"), violations(request(Role.STUDENT_LEADER, "")));
+    }
+
+    @Test
+    void requiresAKnustEmailAddress() {
+        RegisterRequest outside = request(Role.STUDENT_LEADER, "20551234");
+        outside.setEmail("someone@gmail.com");
+        assertTrue(violations(outside).contains("email"));
+
+        // A lookalike domain must not slip through.
+        RegisterRequest lookalike = request(Role.STUDENT_LEADER, "20551234");
+        lookalike.setEmail("someone@knust.edu.gh.evil.com");
+        assertTrue(violations(lookalike).contains("email"));
+    }
+
+    @Test
+    void acceptsKnustSubdomains() {
+        RegisterRequest staffDomain = request(Role.LECTURER, "200912345");
+        staffDomain.setEmail("k.mensah@knust.edu.gh");
+        assertTrue(violations(staffDomain).isEmpty());
+        // request() already uses @st.knust.edu.gh, covered by the accept tests above.
+    }
+
+    @Test
+    void requiresAPasswordOfAtLeastSixCharacters() {
+        RegisterRequest tooShort = request(Role.STUDENT_LEADER, "20551234");
+        tooShort.setPassword("pw123");
+        assertTrue(violations(tooShort).contains("password"));
+
+        RegisterRequest justLongEnough = request(Role.STUDENT_LEADER, "20551234");
+        justLongEnough.setPassword("pw1234");
+        assertTrue(violations(justLongEnough).isEmpty());
+    }
+}

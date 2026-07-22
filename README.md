@@ -86,11 +86,15 @@ The iOS simulator reaches the backend at `localhost:8080` automatically. For a
 
 ## Seeded demo logins
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | `admin@campusbook.local` | `admin12345` |
-| Lecturer | `lecturer@campusbook.local` | `lecturer12345` |
-| Student | `student@campusbook.local` | `student12345` |
+| Role | Email | Staff / Student ID | Password |
+|------|-------|--------------------|----------|
+| Admin | `admin@campusbook.local` | `ADMIN001` | `admin12345` |
+| Lecturer | `lecturer@campusbook.local` | `200912345` | `lecturer12345` |
+| Student | `student@campusbook.local` | `20551234` | `student12345` |
+
+Either the email or the ID works as the login handle. KNUST IDs are **8 digits for
+students, 9 for staff** — enforced on sign-up by both the app and the API. Admin
+accounts are provisioned rather than self-registered, so they're exempt.
 
 ## Configuration (env vars)
 
