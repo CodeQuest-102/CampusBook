@@ -107,9 +107,13 @@ export interface UpdateProfilePayload {
   department?: string;
 }
 
+export interface ForgotPasswordPayload {
+  emailOrId: string;
+}
+
 export interface ResetPasswordPayload {
   emailOrId: string;
-  staffOrStudentId: string;
+  otp: string;
   newPassword: string;
 }
 

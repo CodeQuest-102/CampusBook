@@ -56,18 +56,4 @@ public class UserService {
         }
         return userRepository.save(user);
     }
-
-    /**
-     * Simplified self-service reset: verifies the account and that the supplied
-     * staff/student ID matches, then sets a new password. A production flow would
-     * instead email a one-time token.
-     */
-    public void resetPassword(String emailOrId, String staffOrStudentId, String newPassword) {
-        User user = findByEmailOrStaffId(emailOrId);
-        if (!user.getStaffOrStudentId().equalsIgnoreCase(staffOrStudentId.trim())) {
-            throw new InvalidCredentialsException("Account details do not match");
-        }
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-    }
 }
