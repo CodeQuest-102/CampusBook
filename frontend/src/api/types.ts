@@ -107,6 +107,16 @@ export interface UpdateProfilePayload {
   department?: string;
 }
 
+/** Pagination envelope returned by list endpoints (mirrors backend PagedResponse). */
+export interface PagedResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+}
+
 export interface ForgotPasswordPayload {
   emailOrId: string;
 }
