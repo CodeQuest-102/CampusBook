@@ -1,9 +1,36 @@
 import { apiFetch } from './client';
 import type { HallResponse, HallPayload, HallAvailabilityResponse } from './types';
 
-/** Active halls, visible to any authenticated user. */
-export function listHalls(): Promise<HallResponse[]> {
-  return apiFetch<HallResponse[]>('/api/halls');
+/**
+ * Optional server-side filters for {@link listHalls}. Equipment flags are
+ * "require" filters — pass true to keep only rooms that have the feature.
+ * `freeFrom`/`freeUntil` (ISO date-times) must be supplied together and keep only
+ * rooms with no approved booking overlapping that window.
+ */
+export interface HallFilters {
+  q?: string;
+  minCapacity?: number;
+  projector?: boolean;
+  ac?: boolean;
+  microphone?: boolean;
+  freeFrom?: string;
+  freeUntil?: string;
+}
+
+/** Active halls, visible to any authenticated user. Filtering happens server-side. */
+export function listHalls(filters: HallFilters = {}): Promise<HallResponse[]> {
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) params.set('q', filters.q.trim());
+  if (filters.minCapacity) params.set('minCapacity', String(filters.minCapacity));
+  if (filters.projector) params.set('projector', 'true');
+  if (filters.ac) params.set('ac', 'true');
+  if (filters.microphone) params.set('microphone', 'true');
+  if (filters.freeFrom && filters.freeUntil) {
+    params.set('freeFrom', filters.freeFrom);
+    params.set('freeUntil', filters.freeUntil);
+  }
+  const query = params.toString();
+  return apiFetch<HallResponse[]>(`/api/halls${query ? `?${query}` : ''}`);
 }
 
 /** All halls including disabled ones (admin only). */

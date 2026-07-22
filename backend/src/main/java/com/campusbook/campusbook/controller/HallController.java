@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.campusbook.campusbook.dto.HallAvailabilityResponse;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -24,9 +25,28 @@ public class HallController {
     @Autowired
     private HallService hallService;
 
+    /**
+     * Active halls at the caller's institution. All filters are optional; supply
+     * {@code freeFrom} and {@code freeUntil} together to keep only rooms with no
+     * approved booking overlapping that window.
+     */
     @GetMapping
-    public ResponseEntity<List<HallResponse>> listActiveHalls(@AuthenticationPrincipal User user) {
-        List<HallResponse> halls = hallService.getActiveHalls(user).stream()
+    public ResponseEntity<List<HallResponse>> listActiveHalls(
+            @AuthenticationPrincipal User user,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer minCapacity,
+            @RequestParam(required = false) Boolean projector,
+            @RequestParam(required = false) Boolean ac,
+            @RequestParam(required = false) Boolean microphone,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime freeFrom,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime freeUntil) {
+
+        HallService.HallFilters filters = new HallService.HallFilters(
+                q, minCapacity, projector, ac, microphone, freeFrom, freeUntil);
+
+        List<HallResponse> halls = hallService.searchHalls(user, filters).stream()
                 .map(HallResponse::from)
                 .toList();
         return ResponseEntity.ok(halls);

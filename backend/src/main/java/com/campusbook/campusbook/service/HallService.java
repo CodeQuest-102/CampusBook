@@ -58,6 +58,56 @@ public class HallService {
         return hallRepository.findByInstitutionIdAndActiveTrue(actor.getInstitution().getId());
     }
 
+    /** Optional filters for {@link #searchHalls}; any null field is ignored. */
+    public record HallFilters(String q,
+                              Integer minCapacity,
+                              Boolean projector,
+                              Boolean ac,
+                              Boolean microphone,
+                              LocalDateTime freeFrom,
+                              LocalDateTime freeUntil) {}
+
+    /**
+     * Active halls at the caller's institution narrowed by {@code filters}.
+     * Filtering happens in the database rather than over a fully-loaded list, so
+     * it stays correct as the room count grows.
+     */
+    public List<Hall> searchHalls(User actor, HallFilters filters) {
+        validateFreeWindow(filters.freeFrom(), filters.freeUntil());
+
+        // Neutral sentinels for "no filter" — see HallRepository.search for why the
+        // query can't take nulls here.
+        String pattern = (filters.q() == null || filters.q().isBlank())
+                ? "%"
+                : "%" + filters.q().trim().toLowerCase() + "%";
+        int minCapacity = filters.minCapacity() == null ? 0 : Math.max(0, filters.minCapacity());
+
+        return hallRepository.search(
+                actor.getInstitution().getId(),
+                pattern,
+                minCapacity,
+                Boolean.TRUE.equals(filters.projector()),
+                Boolean.TRUE.equals(filters.ac()),
+                Boolean.TRUE.equals(filters.microphone()),
+                filters.freeFrom() != null,
+                filters.freeFrom(),
+                filters.freeUntil());
+    }
+
+    /**
+     * The availability window is meaningless half-supplied — one bound without the
+     * other would silently ignore the filter, so it's rejected instead.
+     */
+    private void validateFreeWindow(LocalDateTime freeFrom, LocalDateTime freeUntil) {
+        if ((freeFrom == null) != (freeUntil == null)) {
+            throw new IllegalStateException(
+                    "Supply both freeFrom and freeUntil to filter by availability, or neither");
+        }
+        if (freeFrom != null && !freeFrom.isBefore(freeUntil)) {
+            throw new IllegalStateException("freeFrom must be before freeUntil");
+        }
+    }
+
     /** Raw lookup with no scoping — internal callers only. */
     public Hall getHallById(Long id) {
         return hallRepository.findById(id)
