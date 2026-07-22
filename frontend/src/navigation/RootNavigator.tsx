@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -87,52 +88,68 @@ function MainTabs() {
 
 export default function RootNavigator() {
   const { isAuthenticated, isBootstrapping } = useApp();
-
-  // While restoring a persisted session, show the splash (no routing yet).
-  if (isBootstrapping) return <SplashScreen />;
+  const [splashDone, setSplashDone] = useState(false);
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-        {!isAuthenticated ? (
-          // Auth stack — swapped out automatically once signed in.
-          <>
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          </>
-        ) : (
-          // Authenticated app.
-          <>
-            <Stack.Screen name="Main" component={MainTabs} />
+    <View style={styles.root}>
+      {/* Mounted only once bootstrapping is done, so the right stack is picked
+          from the first render and a signed-in user never sees the auth stack.
+          It lays out underneath the opaque splash, so the splash's fade-out
+          reveals a fully-rendered first screen instead of fading to white. */}
+      {!isBootstrapping && (
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+            {!isAuthenticated ? (
+              // Auth stack — swapped out automatically once signed in.
+              <>
+                <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+                <Stack.Screen name="Login" component={LoginScreen} />
+                <Stack.Screen name="SignUp" component={SignUpScreen} />
+                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+              </>
+            ) : (
+              // Authenticated app.
+              <>
+                <Stack.Screen name="Main" component={MainTabs} />
 
-            {/* Flow + detail screens pushed above the tabs */}
-            <Stack.Screen name="BrowseRooms" component={BrowseRoomsScreen} />
-            <Stack.Screen name="RoomDetails" component={RoomDetailsScreen} />
-            <Stack.Screen name="BookingForm" component={BookingFormScreen} />
-            <Stack.Screen
-              name="BookingConfirmation"
-              component={BookingConfirmationScreen}
-              options={{ animation: 'fade' }}
-            />
-            <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            <Stack.Screen name="DaySchedule" component={DayScheduleScreen} />
-            <Stack.Screen name="RequestDetails" component={RequestDetailsScreen} />
-            <Stack.Screen name="RoomManagement" component={RoomManagementScreen} />
-            <Stack.Screen name="RoomForm" component={RoomFormScreen} />
-            <Stack.Screen name="Users" component={UsersScreen} />
-            <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+                {/* Flow + detail screens pushed above the tabs */}
+                <Stack.Screen name="BrowseRooms" component={BrowseRoomsScreen} />
+                <Stack.Screen name="RoomDetails" component={RoomDetailsScreen} />
+                <Stack.Screen name="BookingForm" component={BookingFormScreen} />
+                <Stack.Screen
+                  name="BookingConfirmation"
+                  component={BookingConfirmationScreen}
+                  options={{ animation: 'fade' }}
+                />
+                <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} />
+                <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                <Stack.Screen name="DaySchedule" component={DayScheduleScreen} />
+                <Stack.Screen name="RequestDetails" component={RequestDetailsScreen} />
+                <Stack.Screen name="RoomManagement" component={RoomManagementScreen} />
+                <Stack.Screen name="RoomForm" component={RoomFormScreen} />
+                <Stack.Screen name="Users" component={UsersScreen} />
+                <Stack.Screen name="Subscription" component={SubscriptionScreen} />
 
-            {/* Mock / placeholder destinations */}
-            <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
-            <Stack.Screen name="Preferences" component={PreferencesScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+                {/* Mock / placeholder destinations */}
+                <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
+                <Stack.Screen name="Preferences" component={PreferencesScreen} />
+                <Stack.Screen name="Settings" component={SettingsScreen} />
+                <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+              </>
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+      )}
+
+      {/* Overlays the navigator and fades itself out once the session is
+          restored and it has had its minimum time on screen. */}
+      {!splashDone && (
+        <SplashScreen canExit={!isBootstrapping} onFinish={() => setSplashDone(true)} />
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
