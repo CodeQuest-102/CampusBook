@@ -5,6 +5,7 @@ import {
   digitsOnly,
   validateAttendance,
   validateCampusId,
+  validateFullName,
   validateKnustEmail,
   validatePassword,
   validatePasswordMatch,
@@ -49,9 +50,29 @@ describe('validateCampusId', () => {
     expect(validateCampusId('staff', '   ')).toBe('Staff ID is required.');
   });
 
-  it('exempts admins, who are provisioned rather than self-registered', () => {
+  it('exempts admins from the digit rules — their numbers are free-form', () => {
     expect(CAMPUS_ID_LENGTH.admin).toBe(0);
     expect(validateCampusId('admin', 'ADMIN001')).toBeNull();
+    expect(validateCampusId('admin', '7')).toBeNull();
+  });
+
+  it('still requires an admin to supply some ID', () => {
+    expect(validateCampusId('admin', '  ')).toBe('Staff ID is required.');
+  });
+});
+
+describe('validateFullName', () => {
+  it('accepts a name', () => {
+    expect(validateFullName('Abubakar Sadiq')).toBeNull();
+  });
+
+  /**
+   * Sign-up used to answer a blank name with a form-wide "fill in all required
+   * fields", which named no field to go and fix. It reports on the field now.
+   */
+  it('reports a blank name against the field itself', () => {
+    expect(validateFullName('')).toBe('Full name is required.');
+    expect(validateFullName('   ')).toBe('Full name is required.');
   });
 });
 

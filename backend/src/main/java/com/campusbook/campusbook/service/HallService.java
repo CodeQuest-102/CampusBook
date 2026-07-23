@@ -161,11 +161,34 @@ public class HallService {
         return hallRepository.save(hall);
     }
 
-    public Hall disableHall(Long id, User actor) {
+    /**
+     * Take a room in or out of maintenance without touching anything else about
+     * it. A full {@link #updateHall} would work, but it makes the caller resend
+     * every field to flip one flag — and the admin list only holds a lossy view
+     * of a hall, so a rebuilt payload risks quietly overwriting the rest.
+     */
+    public Hall setHallActive(Long id, boolean active, User actor) {
         Hall hall = getHallById(id);
         assertSameInstitution(hall, actor);
-        hall.setActive(false);
+        hall.setActive(active);
         return hallRepository.save(hall);
+    }
+
+    /**
+     * Permanently remove a room. Only possible while nothing has ever been
+     * booked in it — a hall with history is referenced by bookings and their
+     * audit trail, so taking it out would rewrite the record. Those get set to
+     * maintenance instead, which is what {@link #setHallActive} is for.
+     */
+    public void deleteHall(Long id, User actor) {
+        Hall hall = getHallById(id);
+        assertSameInstitution(hall, actor);
+
+        if (!bookingRepository.findByHallId(id).isEmpty()) {
+            throw new IllegalStateException(
+                    "This room has bookings against it and can't be deleted. Set it to Maintenance instead.");
+        }
+        hallRepository.delete(hall);
     }
 
     private void assertSameInstitution(Hall hall, User actor) {
@@ -174,14 +197,23 @@ public class HallService {
         }
     }
 
+    /**
+     * The cap counts every room on the books, active or not. Counting only
+     * active ones made the limit trivially escapable: park a room on
+     * maintenance, add a replacement, then reactivate the parked one — and
+     * because reactivation goes through {@link #updateHall}, which has no
+     * limit check of its own, nothing ever caught up. On a total count that
+     * loop can't start, and reactivation can never cross the cap either.
+     */
     private void enforceHallLimit(Institution institution) {
         Integer limit = subscriptionCatalog.forTier(institution.getTier()).activeHallLimit();
         if (limit == null) return; // unlimited tier
 
-        long activeCount = hallRepository.countByInstitutionIdAndActiveTrue(institution.getId());
-        if (activeCount >= limit) {
+        long roomCount = hallRepository.countByInstitutionId(institution.getId());
+        if (roomCount >= limit) {
             throw new SubscriptionLimitExceededException(
-                    "Your plan allows a maximum of " + limit + " active rooms. Upgrade to Campus Pro for unlimited rooms."
+                    "Your plan allows a maximum of " + limit + " rooms, including any on maintenance. "
+                            + "Delete a room you no longer use, or upgrade to Campus Pro for unlimited rooms."
             );
         }
     }

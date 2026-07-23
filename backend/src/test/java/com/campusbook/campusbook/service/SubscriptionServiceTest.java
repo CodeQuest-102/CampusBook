@@ -48,7 +48,7 @@ class SubscriptionServiceTest {
 
     @Test
     void getSubscription_reportsFreeLimitsAndUsage() {
-        when(hallRepository.countByInstitutionIdAndActiveTrue(1L)).thenReturn(5L);
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(5L);
         when(bookingRepository.countBookingsForInstitutionInRange(anyLong(), any(), any()))
                 .thenReturn(12L);
 
@@ -64,7 +64,7 @@ class SubscriptionServiceTest {
 
     @Test
     void getSubscription_proHasUnlimitedAndAnalytics() {
-        when(hallRepository.countByInstitutionIdAndActiveTrue(1L)).thenReturn(9L);
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(9L);
         when(bookingRepository.countBookingsForInstitutionInRange(anyLong(), any(), any()))
                 .thenReturn(40L);
 
@@ -80,7 +80,7 @@ class SubscriptionServiceTest {
     void changeTier_upgradeToProFlipsTierAndFlags() {
         Institution inst = institution(SubscriptionTier.FREE);
         when(institutionRepository.save(any(Institution.class))).thenAnswer(i -> i.getArgument(0));
-        when(hallRepository.countByInstitutionIdAndActiveTrue(1L)).thenReturn(0L);
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(0L);
         when(bookingRepository.countBookingsForInstitutionInRange(anyLong(), any(), any()))
                 .thenReturn(0L);
 

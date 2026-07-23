@@ -1,6 +1,7 @@
 package com.campusbook.campusbook.controller;
 
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.dto.HallActiveRequest;
 import com.campusbook.campusbook.dto.HallRequest;
 import com.campusbook.campusbook.dto.HallResponse;
 import com.campusbook.campusbook.entity.Hall;
@@ -84,11 +85,26 @@ public class HallController {
         return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall, user)));
     }
 
+    /** Put a room into maintenance, or bring it back. */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<HallResponse> setHallActive(@AuthenticationPrincipal User user,
+                                                       @PathVariable Long id,
+                                                       @Valid @RequestBody HallActiveRequest request) {
+        return ResponseEntity.ok(HallResponse.from(
+                hallService.setHallActive(id, request.isActive(), user)));
+    }
+
+    /**
+     * Remove a room outright. Rooms that have been booked can't be deleted —
+     * set those to maintenance with {@code PATCH /{id}/active} instead.
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<HallResponse> disableHall(@AuthenticationPrincipal User user,
-                                                     @PathVariable Long id) {
-        return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id, user)));
+    public ResponseEntity<Void> deleteHall(@AuthenticationPrincipal User user,
+                                            @PathVariable Long id) {
+        hallService.deleteHall(id, user);
+        return ResponseEntity.noContent().build();
     }
 
     private Hall toHall(HallRequest request) {

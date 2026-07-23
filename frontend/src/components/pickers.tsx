@@ -212,6 +212,9 @@ function WheelColumn({
   // (from scrolling) apart from external ones (mount / opening afresh). Starts
   // at -1 so the first run always positions the column to the initial value.
   const settled = useRef(-1);
+  // Fallback commit for platforms where the rest events don't fire (a web mouse
+  // wheel produces scroll events but no drag-end or momentum-end).
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (index === settled.current) return; // originated from our own scroll
@@ -221,23 +224,40 @@ function WheelColumn({
     requestAnimationFrame(() => ref.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: false }));
   }, [index]);
 
-  const clamp = (i: number) => Math.max(0, Math.min(items.length - 1, i));
+  useEffect(() => () => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+  }, []);
 
-  // Track the centred row on every frame — this is what makes the wheel work
-  // with a mouse wheel on web (where momentum/drag-end events never fire).
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = clamp(Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT));
-    if (next !== active) setActive(next);
-    if (next !== settled.current) {
-      settled.current = next;
-      onChange(next);
-    }
+  const clamp = (i: number) => Math.max(0, Math.min(items.length - 1, i));
+  const indexAt = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
+    clamp(Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT));
+
+  const commit = (next: number) => {
+    if (next === settled.current) return;
+    settled.current = next;
+    onChange(next);
   };
 
-  // Ensure the resting position is snapped exactly to a row (native drag/inertia).
+  /**
+   * Per-frame work is deliberately local: it moves the highlight and nothing
+   * else. Reporting the value here instead re-rendered the whole host form on
+   * every scroll frame, which is enough to stall the JS thread mid-gesture.
+   */
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const next = indexAt(e);
+    if (next !== active) setActive(next);
+
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => commit(next), 140);
+  };
+
+  /** Rest position: snap exactly to a row and report the value. */
   const settle = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = clamp(Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT));
+    const next = indexAt(e);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    setActive(next);
     ref.current?.scrollTo({ y: next * ITEM_HEIGHT, animated: true });
+    commit(next);
   };
 
   return (
@@ -248,6 +268,7 @@ function WheelColumn({
       snapToInterval={ITEM_HEIGHT}
       decelerationRate="fast"
       scrollEventThrottle={16}
+      nestedScrollEnabled
       onScroll={onScroll}
       onMomentumScrollEnd={settle}
       onScrollEndDrag={settle}
@@ -418,8 +439,16 @@ export function PickerSheet({
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <Pressable style={sheet.backdrop} onPress={onCancel}>
-        <Pressable style={sheet.sheet}>
+      {/*
+        The dismiss target is a sibling above the sheet, not a Pressable wrapped
+        around it. A Pressable ancestor claims the JS responder the moment a
+        touch lands and doesn't hand it back, so the time wheel inside it could
+        not be scrolled at all — it swallowed the drag before the ScrollView
+        ever saw it.
+      */}
+      <View style={sheet.backdrop}>
+        <Pressable style={sheet.dismissArea} onPress={onCancel} />
+        <View style={sheet.sheet}>
           <View style={sheet.handle} />
           <Text style={sheet.title}>{title}</Text>
 
@@ -430,8 +459,8 @@ export function PickerSheet({
           ) : null}
 
           <Button title="Done" onPress={onDone} style={{ marginTop: spacing.lg }} />
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -455,6 +484,8 @@ const field = StyleSheet.create({
 
 const sheet = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  /** Everything above the sheet — tapping it closes, the way a backdrop should. */
+  dismissArea: { flex: 1 },
   sheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.xl,

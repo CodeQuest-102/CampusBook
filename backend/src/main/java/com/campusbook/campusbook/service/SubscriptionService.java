@@ -31,7 +31,10 @@ public class SubscriptionService {
     public SubscriptionResponse getSubscription(Institution institution) {
         SubscriptionPlan plan = catalog.forTier(institution.getTier());
 
-        long activeHalls = hallRepository.countByInstitutionIdAndActiveTrue(institution.getId());
+        // Counted the same way the limit is enforced (HallService.enforceHallLimit):
+        // every room on the books, maintenance included. A usage figure that
+        // excluded parked rooms would read "3 of 5" right up to a refusal at 5.
+        long activeHalls = hallRepository.countByInstitutionId(institution.getId());
 
         YearMonth month = YearMonth.now();
         LocalDateTime monthStart = month.atDay(1).atStartOfDay();

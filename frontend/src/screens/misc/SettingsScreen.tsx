@@ -16,7 +16,7 @@ export default function SettingsScreen({ navigation }: Props) {
     {
       title: 'Account',
       rows: [
-        { icon: 'person-outline', label: 'Edit Profile', onPress: () => navigation.navigate('Main', { screen: 'Profile' }) },
+        { icon: 'person-outline', label: 'Edit Profile', onPress: () => navigation.navigate('EditProfile') },
         { icon: 'key-outline', label: 'Change Password', onPress: () => navigation.navigate('ForgotPassword') },
         { icon: 'options-outline', label: 'Preferences', onPress: () => navigation.navigate('Preferences') },
       ],

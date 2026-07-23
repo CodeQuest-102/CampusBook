@@ -22,3 +22,4 @@ export {
 export { default as SuccessOverlay } from './SuccessOverlay';
 export { default as StateView } from './StateView';
 export { default as BookingHistory } from './BookingHistory';
+export { default as RoomAvailability } from './RoomAvailability';

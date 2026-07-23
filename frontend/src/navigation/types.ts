@@ -39,6 +39,7 @@ export type RootStackParamList = {
   Settings: undefined;
   HelpSupport: undefined;
   Users: undefined;
+  AddUser: undefined;
   Subscription: undefined;
   RoomForm: { mode: 'add' | 'edit'; room?: Room };
 };

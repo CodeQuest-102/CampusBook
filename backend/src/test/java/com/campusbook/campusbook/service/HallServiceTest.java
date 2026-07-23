@@ -1,17 +1,25 @@
 package com.campusbook.campusbook.service;
 
+import com.campusbook.campusbook.entity.Booking;
+import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
+import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
+import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,6 +30,7 @@ import static org.mockito.Mockito.*;
 class HallServiceTest {
 
     @Mock HallRepository hallRepository;
+    @Mock BookingRepository bookingRepository;
     @InjectMocks HallService hallService;
 
     private User actor() {
@@ -105,5 +114,102 @@ class HallServiceTest {
 
         verify(hallRepository).search(eq(1L), eq("%"), eq(0), eq(false), eq(false), eq(false),
                 eq(false), isNull(), isNull());
+    }
+
+    /* --------------------------- plan room cap ---------------------------- */
+
+    private Hall newHall() {
+        Hall h = new Hall();
+        h.setBlock("Science Complex Block");
+        h.setRoomCode("GF9");
+        h.setCapacity(50);
+        return h;
+    }
+
+    private void withRealCatalog() {
+        ReflectionTestUtils.setField(hallService, "subscriptionCatalog", new SubscriptionCatalog());
+    }
+
+    /**
+     * The escape this closes: park a room on maintenance, add a replacement,
+     * then reactivate the parked one. Counting only active rooms made the Free
+     * tier's cap of 5 unenforceable.
+     */
+    @Test
+    void roomCap_countsMaintenanceRoomsToo() {
+        withRealCatalog();
+        User admin = actor(); // FREE tier, limit 5
+        when(hallRepository.findByInstitutionIdAndRoomCode(1L, "GF9")).thenReturn(Optional.empty());
+        // 4 active + 1 on maintenance = 5 on the books.
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(5L);
+
+        assertThatThrownBy(() -> hallService.createHall(newHall(), admin))
+                .isInstanceOf(SubscriptionLimitExceededException.class)
+                .hasMessageContaining("including any on maintenance");
+
+        verify(hallRepository, never()).save(any());
+    }
+
+    @Test
+    void roomCap_allowsCreationBelowTheLimit() {
+        withRealCatalog();
+        User admin = actor();
+        when(hallRepository.findByInstitutionIdAndRoomCode(1L, "GF9")).thenReturn(Optional.empty());
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(4L);
+        when(hallRepository.save(any(Hall.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThatCode(() -> hallService.createHall(newHall(), admin)).doesNotThrowAnyException();
+
+        verify(hallRepository).save(any(Hall.class));
+    }
+
+    /* ----------------------------- deletion ------------------------------- */
+
+    private Hall existingHall(User owner) {
+        Hall h = newHall();
+        h.setId(7L);
+        h.setInstitution(owner.getInstitution());
+        return h;
+    }
+
+    @Test
+    void deleteHall_refusesARoomThatHasBookings() {
+        User admin = actor();
+        Hall hall = existingHall(admin);
+        when(hallRepository.findById(7L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findByHallId(7L)).thenReturn(List.of(new Booking()));
+
+        assertThatThrownBy(() -> hallService.deleteHall(7L, admin))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Maintenance");
+
+        verify(hallRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteHall_removesARoomWithNoHistory() {
+        User admin = actor();
+        Hall hall = existingHall(admin);
+        when(hallRepository.findById(7L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findByHallId(7L)).thenReturn(List.of());
+
+        hallService.deleteHall(7L, admin);
+
+        verify(hallRepository).delete(hall);
+    }
+
+    @Test
+    void setHallActive_togglesWithoutTouchingAnythingElse() {
+        User admin = actor();
+        Hall hall = existingHall(admin);
+        hall.setActive(false);
+        when(hallRepository.findById(7L)).thenReturn(Optional.of(hall));
+        when(hallRepository.save(any(Hall.class))).thenAnswer(i -> i.getArgument(0));
+
+        Hall result = hallService.setHallActive(7L, true, admin);
+
+        assertThat(result.isActive()).isTrue();
+        assertThat(result.getRoomCode()).isEqualTo("GF9");
+        assertThat(result.getCapacity()).isEqualTo(50);
     }
 }

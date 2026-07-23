@@ -5,14 +5,25 @@ import { Screen, TopBar, Avatar, StatusPill, SearchBar, StateView } from '../../
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
 import { usersApi, userToDirectory } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
+import type { DirectoryUser } from '../../data/placeholder';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Users'>;
 
-const TABS = ['All', 'Students', 'Staff', 'Admins'];
+/**
+ * `role` is the exact `DirectoryUser['role']` value to match, not something
+ * derived from the label — depluralising "Staff" gave "Staf", which matched
+ * nobody and left the tab permanently empty.
+ */
+const TABS: { label: string; role: DirectoryUser['role'] | null }[] = [
+  { label: 'All', role: null },
+  { label: 'Students', role: 'Student' },
+  { label: 'Staff', role: 'Staff' },
+  { label: 'Admins', role: 'Admin' },
+];
 
 export default function UsersScreen({ navigation }: Props) {
-  const [tab, setTab] = useState('All');
+  const [tab, setTab] = useState<string>('All');
   const [query, setQuery] = useState('');
 
   const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
@@ -21,8 +32,9 @@ export default function UsersScreen({ navigation }: Props) {
 
   const q = query.trim().toLowerCase();
   const users = data ?? [];
+  const activeRole = TABS.find((t) => t.label === tab)?.role ?? null;
   const filtered = users.filter((u) => {
-    if (tab !== 'All' && u.role !== tab.slice(0, -1)) return false;
+    if (activeRole && u.role !== activeRole) return false;
     if (!q) return true;
     return (
       u.name.toLowerCase().includes(q) ||
@@ -33,7 +45,13 @@ export default function UsersScreen({ navigation }: Props) {
 
   return (
     <>
-      <TopBar variant="title" title="Users" onBack={() => navigation.goBack()} rightIcon="person-add-outline" />
+      <TopBar
+        variant="title"
+        title="Users"
+        onBack={() => navigation.goBack()}
+        rightIcon="person-add-outline"
+        onRight={() => navigation.navigate('AddUser')}
+      />
       <Screen
         scroll
         refreshControl={
@@ -44,15 +62,15 @@ export default function UsersScreen({ navigation }: Props) {
 
         <View style={styles.tabs}>
           {TABS.map((t) => {
-            const on = tab === t;
+            const on = tab === t.label;
             return (
               <TouchableOpacity
-                key={t}
+                key={t.label}
                 style={[styles.tab, on && styles.tabActive]}
-                onPress={() => setTab(t)}
+                onPress={() => setTab(t.label)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.tabText, on && styles.tabTextActive]}>{t}</Text>
+                <Text style={[styles.tabText, on && styles.tabTextActive]}>{t.label}</Text>
               </TouchableOpacity>
             );
           })}

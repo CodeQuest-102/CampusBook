@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TopBar, Button, StatusPill, Chip } from '../../components';
+import { Screen, TopBar, Button, StatusPill, Chip, RoomAvailability } from '../../components';
 import { roomStatusLabel, roomTone } from '../../components/StatusPill';
 import { colors, radius, spacing, typography } from '../../theme';
 import type { RootStackParamList } from '../../navigation/types';
@@ -17,10 +17,30 @@ const FACILITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'Sound System': 'volume-high-outline',
 };
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
 export default function RoomDetailsScreen({ route, navigation }: Props) {
   const { room } = route.params;
   const bookable = room.status !== 'maintenance';
   const [favorite, setFavorite] = useState(false);
+
+  // A week ahead is as far as anyone plans from this screen; the booking form
+  // shows the chosen date's slots for anything further out.
+  const days = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, []);
+  const [day, setDay] = useState(() => days[0]);
 
   return (
     <>
@@ -59,6 +79,29 @@ export default function RoomDetailsScreen({ route, navigation }: Props) {
 
         <Text style={styles.sectionTitle}>About Room</Text>
         <Text style={styles.about}>{room.description}</Text>
+
+        <Text style={styles.sectionTitle}>Availability</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.dayStrip}
+        >
+          {days.map((d) => {
+            const on = sameDay(d, day);
+            return (
+              <TouchableOpacity
+                key={d.toISOString()}
+                style={[styles.day, on && styles.dayOn]}
+                onPress={() => setDay(d)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.dayName, on && styles.dayTextOn]}>{WEEKDAYS[d.getDay()]}</Text>
+                <Text style={[styles.dayNum, on && styles.dayTextOn]}>{d.getDate()}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        <RoomAvailability roomId={room.id} date={day} />
       </Screen>
 
       <View style={styles.footer}>
@@ -120,6 +163,21 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.title, marginTop: spacing.xl, marginBottom: spacing.md },
   facilities: { flexDirection: 'row', flexWrap: 'wrap' },
   about: { ...typography.bodyMuted, lineHeight: 22 },
+  dayStrip: { paddingBottom: spacing.md },
+  day: {
+    width: 52,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  dayOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  dayName: { ...typography.caption, fontSize: 11 },
+  dayNum: { ...typography.body, fontWeight: '700', marginTop: 2 },
+  dayTextOn: { color: colors.white },
   footer: {
     padding: spacing.xl,
     borderTopWidth: 1,

@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,8 +67,11 @@ public class BookingService {
         );
 
         if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("This hall is already booked for an overlapping time slot");
+            throw new IllegalStateException(describeConflict(hall, conflicts.get(0)));
         }
+
+        assertNoDuplicateRequest(hall, booking.getUser(), -1L,
+                booking.getStartTime(), booking.getEndTime());
 
         enforceMonthlyBookingLimit(hall.getInstitution(), booking.getStartTime());
 
@@ -141,6 +145,7 @@ public class BookingService {
                 if (!conflicts.isEmpty()) {
                     throw new IllegalStateException("Hall already booked for this slot");
                 }
+                assertNoDuplicateRequest(hall, user, -1L, start, end);
                 enforceMonthlyBookingLimit(hall.getInstitution(), start);
 
                 Booking b = new Booking();
@@ -189,7 +194,7 @@ public class BookingService {
         );
 
         if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("This hall is already booked for an overlapping time slot");
+            throw new IllegalStateException(describeConflict(booking.getHall(), conflicts.get(0)));
         }
 
         booking.setStatus(BookingStatus.APPROVED);
@@ -295,8 +300,10 @@ public class BookingService {
         List<Booking> conflicts = bookingRepository.findOverlappingBookings(
                 booking.getHall().getId(), booking.getId(), newStart, newEnd);
         if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("This hall is already booked for an overlapping time slot");
+            throw new IllegalStateException(describeConflict(booking.getHall(), conflicts.get(0)));
         }
+
+        assertNoDuplicateRequest(booking.getHall(), booking.getUser(), booking.getId(), newStart, newEnd);
 
         booking.setStartTime(newStart);
         booking.setEndTime(newEnd);
@@ -386,6 +393,22 @@ public class BookingService {
                 .toList();
     }
 
+    /**
+     * Approved and still-pending bookings competing with this one for its room
+     * and window. Lets an admin see what a request is up against — including
+     * the rival requests that made it into the queue alongside it.
+     */
+    public List<Booking> getConflictsFor(Long bookingId, User admin) {
+        Booking booking = getBookingById(bookingId);
+        assertSameInstitution(booking.getHall(), admin);
+
+        return bookingRepository.findCompetingBookings(
+                booking.getHall().getId(),
+                booking.getId(),
+                booking.getStartTime(),
+                booking.getEndTime());
+    }
+
     /** Why one id in a bulk action didn't go through. */
     public record BulkFailure(Long id, String reason) {}
 
@@ -448,6 +471,41 @@ public class BookingService {
         if (!hall.getInstitution().getId().equals(actor.getInstitution().getId())) {
             throw new SecurityException("This resource belongs to another institution");
         }
+    }
+
+    /**
+     * Two people asking for the same slot is a decision for the approval queue,
+     * but one person asking twice is a duplicate — it can't be approved (the
+     * second attempt would collide with the first) and it clutters the queue.
+     */
+    private void assertNoDuplicateRequest(Hall hall, User user, Long excludeBookingId,
+                                          LocalDateTime start, LocalDateTime end) {
+        List<Booking> own = bookingRepository.findOwnPendingOverlaps(
+                hall.getId(), user.getId(), excludeBookingId, start, end);
+        if (!own.isEmpty()) {
+            Booking existing = own.get(0);
+            throw new IllegalStateException(
+                    "You already have a pending request for " + roomLabel(hall) + " at "
+                            + TIME.format(existing.getStartTime()) + "–" + TIME.format(existing.getEndTime())
+                            + " that day. Wait for it to be decided, or cancel it first.");
+        }
+    }
+
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("h:mm a");
+
+    private static String roomLabel(Hall hall) {
+        return hall.getBlock() + " " + hall.getRoomCode();
+    }
+
+    /**
+     * Names the booking holding the slot. An admin hitting this needs to know
+     * <em>which</em> booking is in the way to decide what to do about it — the
+     * bare "already booked" left them with nothing to act on.
+     */
+    private String describeConflict(Hall hall, Booking holder) {
+        return roomLabel(hall) + " is already booked "
+                + TIME.format(holder.getStartTime()) + "–" + TIME.format(holder.getEndTime())
+                + " by " + holder.getUser().getFullName();
     }
 
     /**

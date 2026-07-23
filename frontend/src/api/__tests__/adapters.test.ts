@@ -10,8 +10,14 @@ import {
   toLocalDateString,
   formatDisplayDate,
   formatDisplayTime,
+  availabilityToSchedule,
 } from '../adapters';
-import type { HallResponse, BookingResponse, NotificationResponse } from '../types';
+import type {
+  HallResponse,
+  BookingResponse,
+  NotificationResponse,
+  HallAvailabilityResponse,
+} from '../types';
 
 const hall: HallResponse = {
   id: 2,
@@ -151,5 +157,34 @@ describe('date/time helpers', () => {
   it('round-trips display formatting', () => {
     expect(formatDisplayDate('2026-07-20T10:00:00')).toBe('20 Jul 2026');
     expect(formatDisplayTime('2026-07-20T14:05:00')).toBe('2:05 PM');
+  });
+});
+
+describe('availabilityToSchedule', () => {
+  const availability: HallAvailabilityResponse = {
+    hallId: 2,
+    date: '2026-07-20',
+    occupiedSlots: [
+      { startTime: '2026-07-20T10:00:00', endTime: '2026-07-20T12:00:00', bookedBy: 'Ama Mensah' },
+      { startTime: '2026-07-20T14:00:00', endTime: '2026-07-20T15:30:00', bookedBy: 'Kofi Boateng' },
+    ],
+  };
+
+  it('maps each occupied slot to its window', () => {
+    const slots = availabilityToSchedule(availability);
+    expect(slots).toHaveLength(2);
+    expect(slots[0].startTime).toBe('10:00 AM');
+    expect(slots[0].endTime).toBe('12:00 PM');
+    expect(slots[1].startTime).toBe('2:00 PM');
+  });
+
+  /**
+   * This screen is shown to anyone browsing a room, so the holder's name must
+   * not travel with the slot — see the note on the adapter.
+   */
+  it('does not leak who booked the slot', () => {
+    const serialised = JSON.stringify(availabilityToSchedule(availability));
+    expect(serialised).not.toContain('Ama Mensah');
+    expect(serialised).not.toContain('Kofi Boateng');
   });
 });

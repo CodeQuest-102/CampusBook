@@ -12,6 +12,7 @@ import {
   campusIdLabel,
   digitsOnly,
   validateCampusId,
+  validateFullName,
   validateKnustEmail,
   validatePassword,
   validatePasswordMatch,
@@ -39,7 +40,9 @@ export default function SignUpScreen({ navigation }: Props) {
   const [confirm, setConfirm] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  // `error` is for API failures only; every field problem shows on its own field.
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [idError, setIdError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -56,18 +59,18 @@ export default function SignUpScreen({ navigation }: Props) {
   };
 
   const onSubmit = async () => {
-    if (!fullName.trim()) {
-      setError('Please fill in all required fields.');
-      return;
-    }
     // Collect every field problem in one pass so the user fixes them together
-    // rather than discovering them one submit at a time.
+    // rather than discovering them one submit at a time. Full name goes through
+    // the same path as the rest — it used to bail out early with a generic
+    // "fill in all required fields", which named no field to go and fix.
     const problems = {
+      name: validateFullName(fullName),
       email: validateKnustEmail(email),
       id: validateCampusId(role, staffOrStudentId),
       password: validatePassword(password),
       confirm: validatePasswordMatch(password, confirm),
     };
+    setNameError(problems.name);
     setEmailError(problems.email);
     setIdError(problems.id);
     setPasswordError(problems.password);
@@ -105,8 +108,12 @@ export default function SignUpScreen({ navigation }: Props) {
           label="Full Name"
           icon="person-outline"
           placeholder="Abubakar Sadiq"
+          error={nameError}
           value={fullName}
-          onChangeText={setFullName}
+          onChangeText={(t) => {
+            setFullName(t);
+            if (nameError) setNameError(null);
+          }}
         />
         <TextField
           label="Email Address"

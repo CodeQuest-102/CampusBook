@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TopBar, TextField, Button, StatusPill, PickerField, PickerSheet, formatDate, KeyboardAvoider } from '../../components';
+import { Screen, TopBar, TextField, Button, StatusPill, PickerField, PickerSheet, formatDate, KeyboardAvoider, RoomAvailability } from '../../components';
 import { colors, fontWeight, radius, spacing, typography } from '../../theme';
 import { bookingsApi, toLocalDateTimeIso, toLocalDateString, ApiError } from '../../api';
 import { NOTES_MAX_LENGTH, PURPOSE_MAX_LENGTH, validateAttendance } from '../../validation';
@@ -171,6 +171,11 @@ export default function BookingFormScreen({ route, navigation }: Props) {
             flex
             onPress={() => openPicker('end')}
           />
+        </View>
+
+        <Text style={styles.groupLabel}>Already booked on {formatDate(date)}</Text>
+        <View style={{ marginBottom: spacing.lg }}>
+          <RoomAvailability roomId={room.id} date={date} />
         </View>
 
         <TextField

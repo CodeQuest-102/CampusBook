@@ -15,9 +15,9 @@ export const CAMPUS_ID_LENGTH: Record<Role, number> = {
   admin: 0,
 };
 
-/** Field label for a role's campus ID. */
+/** Field label for a role's campus ID. Admins carry a staff number. */
 export function campusIdLabel(role: Role): string {
-  return role === 'staff' ? 'Staff ID' : 'Student ID';
+  return role === 'student' ? 'Student ID' : 'Staff ID';
 }
 
 /** Strips everything that isn't a digit — campus IDs are numeric. */
@@ -28,14 +28,24 @@ export function digitsOnly(value: string): string {
 /** Returns an error message for an invalid campus ID, or null when it's fine. */
 export function validateCampusId(role: Role, value: string): string | null {
   const expected = CAMPUS_ID_LENGTH[role];
-  if (!expected) return null; // admin — no self-registration rule to apply
-
   const id = value.trim();
   const label = campusIdLabel(role);
+
+  // Admin numbers are institution-issued with no published format (the seeded
+  // one is "ADMIN001"), so there's nothing to check past "they gave us one".
+  if (!expected) return id ? null : `${label} is required.`;
 
   if (!id) return `${label} is required.`;
   if (!/^\d+$/.test(id)) return `${label} must contain digits only.`;
   if (id.length !== expected) return `${label} must be exactly ${expected} digits.`;
+  return null;
+}
+
+/* ------------------------------ full name -------------------------------- */
+
+/** Matches the server's @NotBlank on RegisterRequest.fullName. */
+export function validateFullName(value: string): string | null {
+  if (!value.trim()) return 'Full name is required.';
   return null;
 }
 

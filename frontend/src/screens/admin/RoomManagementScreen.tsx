@@ -19,22 +19,46 @@ export default function RoomManagementScreen({ navigation }: Props) {
 
   const rooms = data ?? [];
 
-  const confirmDisable = (room: Room) => {
-    Alert.alert('Disable room', `Disable ${room.building} — ${room.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Disable',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await hallsApi.disableHall(room.id);
-            reload();
-          } catch (e) {
-            Alert.alert('Could not disable', e instanceof ApiError ? e.message : 'Please try again.');
-          }
+  const underMaintenance = (room: Room) => room.status === 'maintenance';
+
+  /** Flip a room in or out of maintenance. Reversible, so no confirmation. */
+  const toggleMaintenance = async (room: Room) => {
+    try {
+      await hallsApi.setHallActive(room.id, underMaintenance(room));
+      reload();
+    } catch (e) {
+      Alert.alert('Could not update', e instanceof ApiError ? e.message : 'Please try again.');
+    }
+  };
+
+  /**
+   * Deleting is permanent and counts against the plan's room cap, so it's worth
+   * the confirmation. The backend refuses rooms that have been booked — that
+   * message tells the admin to use maintenance instead, so pass it straight on.
+   */
+  const confirmDelete = (room: Room) => {
+    Alert.alert(
+      'Delete room',
+      `Permanently delete ${room.building} — ${room.name}? This frees a room slot on your plan.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await hallsApi.deleteHall(room.id);
+              reload();
+            } catch (e) {
+              Alert.alert(
+                'Could not delete',
+                e instanceof ApiError ? e.message : 'Please try again.',
+              );
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   return (
@@ -90,7 +114,22 @@ export default function RoomManagementScreen({ navigation }: Props) {
                   >
                     <Ionicons name="create-outline" size={19} color={colors.textSecondary} />
                   </TouchableOpacity>
-                  <TouchableOpacity hitSlop={8} onPress={() => confirmDisable(room)} style={{ marginLeft: spacing.md }}>
+                  <TouchableOpacity
+                    hitSlop={8}
+                    onPress={() => toggleMaintenance(room)}
+                    style={{ marginLeft: spacing.md }}
+                  >
+                    <Ionicons
+                      name={underMaintenance(room) ? 'checkmark-circle-outline' : 'construct-outline'}
+                      size={19}
+                      color={underMaintenance(room) ? colors.success : colors.warning}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    hitSlop={8}
+                    onPress={() => confirmDelete(room)}
+                    style={{ marginLeft: spacing.md }}
+                  >
                     <Ionicons name="trash-outline" size={19} color={colors.danger} />
                   </TouchableOpacity>
                 </View>

@@ -26,6 +26,13 @@ export interface RegisterPayload {
   department?: string;
 }
 
+/**
+ * Same fields as {@link RegisterPayload}, different gate: this one goes to the
+ * admin-only `POST /api/users`, so `role` may be `ADMIN` — public sign-up
+ * refuses that.
+ */
+export type AdminCreateUserPayload = RegisterPayload;
+
 export interface LoginPayload {
   emailOrId: string;
   password: string;

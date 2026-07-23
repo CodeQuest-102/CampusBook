@@ -42,6 +42,15 @@ export function approveBooking(id: number | string): Promise<BookingResponse> {
   return apiFetch<BookingResponse>(`/api/bookings/${id}/approve`, { method: 'POST' });
 }
 
+/**
+ * Approved and still-pending bookings competing with this one for its room and
+ * window (admin only). Lets the admin see the clash before deciding, instead of
+ * discovering it when an approval bounces.
+ */
+export function conflicts(id: number | string): Promise<BookingResponse[]> {
+  return apiFetch<BookingResponse[]>(`/api/bookings/${id}/conflicts`);
+}
+
 export function rejectBooking(id: number | string, reason?: string): Promise<BookingResponse> {
   return apiFetch<BookingResponse>(`/api/bookings/${id}/reject`, {
     method: 'POST',

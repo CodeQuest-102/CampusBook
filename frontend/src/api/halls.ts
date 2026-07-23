@@ -57,6 +57,19 @@ export function updateHall(id: number | string, payload: HallPayload): Promise<H
   return apiFetch<HallResponse>(`/api/halls/${id}`, { method: 'PUT', body: payload });
 }
 
-export function disableHall(id: number | string): Promise<HallResponse> {
-  return apiFetch<HallResponse>(`/api/halls/${id}`, { method: 'DELETE' });
+/** Put a room into maintenance (`false`) or bring it back (`true`). */
+export function setHallActive(id: number | string, active: boolean): Promise<HallResponse> {
+  return apiFetch<HallResponse>(`/api/halls/${id}/active`, {
+    method: 'PATCH',
+    body: { active },
+  });
+}
+
+/**
+ * Remove a room for good. Rejected with a 400 when the room has bookings
+ * against it — those have to go into maintenance instead, so the booking
+ * history keeps pointing at something real.
+ */
+export function deleteHall(id: number | string): Promise<void> {
+  return apiFetch<void>(`/api/halls/${id}`, { method: 'DELETE' });
 }

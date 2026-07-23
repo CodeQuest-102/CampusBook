@@ -106,6 +106,21 @@ public class BookingController {
     }
 
     /**
+     * Approved and pending bookings competing with this request for its room and
+     * window, so the admin can see the clash before deciding rather than after
+     * an approval bounces.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}/conflicts")
+    public ResponseEntity<List<BookingResponse>> getConflicts(@AuthenticationPrincipal User user,
+                                                              @PathVariable Long id) {
+        List<BookingResponse> conflicts = bookingService.getConflictsFor(id, user).stream()
+                .map(BookingResponse::from)
+                .toList();
+        return ResponseEntity.ok(conflicts);
+    }
+
+    /**
      * Approve several pending requests at once. Returns each id's outcome —
      * some may fail (e.g. the slot was taken) while others succeed.
      */

@@ -102,6 +102,67 @@ class AuthorizationIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    /* ----------------------- admin-only: provisioning ---------------------- */
+
+    @Test
+    void createUser_withoutToken_is401() throws Exception {
+        mvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * The endpoint may create ADMIN accounts, which is exactly why it has to be
+     * shut to everyone else — otherwise it reopens the escalation that
+     * {@code register_asAdminRole_is400} closes on the public route.
+     */
+    @Test
+    void createUser_asStudent_is403() throws Exception {
+        String body = """
+                {"fullName":"Sneaky Admin","email":"sneaky.admin@knust.edu.gh",
+                 "staffOrStudentId":"ADMIN999","password":"password1","role":"ADMIN"}""";
+        mvc.perform(post("/api/users")
+                        .header("Authorization", "Bearer " + studentToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Email and campus ID are unique for the life of the database, and this
+     * suite runs against a real one — so a fixed identity here would pass once
+     * and then fail on every later run as a duplicate. Both are randomised per
+     * run to keep the test repeatable.
+     */
+    @Test
+    void createUser_asAdmin_is201() throws Exception {
+        String staffId = String.valueOf(200_000_000 + new java.util.Random().nextInt(99_999_999));
+        String body = """
+                {"fullName":"Provisioned Lecturer","email":"provisioned.%s@knust.edu.gh",
+                 "staffOrStudentId":"%s","password":"password1","role":"LECTURER",
+                 "department":"History"}""".formatted(staffId, staffId);
+        mvc.perform(post("/api/users")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createUser_withNonKnustEmail_is400() throws Exception {
+        // Rejected on the address before uniqueness is ever consulted, so a
+        // fixed ID is safe here.
+        String body = """
+                {"fullName":"Outsider","email":"outsider.admin@gmail.com",
+                 "staffOrStudentId":"200977778","password":"password1","role":"LECTURER"}""";
+        mvc.perform(post("/api/users")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
     /* --------------------- register: input can't escalate ------------------ */
 
     @Test

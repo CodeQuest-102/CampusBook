@@ -25,6 +25,7 @@ import RequestDetailsScreen from '../screens/admin/RequestDetailsScreen';
 import RoomManagementScreen from '../screens/admin/RoomManagementScreen';
 import RoomFormScreen from '../screens/admin/RoomFormScreen';
 import UsersScreen from '../screens/admin/UsersScreen';
+import AddUserScreen from '../screens/admin/AddUserScreen';
 import SubscriptionScreen from '../screens/admin/SubscriptionScreen';
 
 // Mock / placeholder destinations
@@ -128,6 +129,7 @@ export default function RootNavigator() {
                 <Stack.Screen name="RoomManagement" component={RoomManagementScreen} />
                 <Stack.Screen name="RoomForm" component={RoomFormScreen} />
                 <Stack.Screen name="Users" component={UsersScreen} />
+                <Stack.Screen name="AddUser" component={AddUserScreen} />
                 <Stack.Screen name="Subscription" component={SubscriptionScreen} />
 
                 {/* Mock / placeholder destinations */}

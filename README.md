@@ -16,7 +16,10 @@ subscription model (individual users are never charged).
   server-side search / filtering (capacity, equipment, free-in-a-time-window)
 - **Bookings** — create with purpose / attendance / notes, conflict detection,
   recurring weekly series, reschedule (re-approval), cancel; admin approve /
-  reject, plus **bulk approve / reject** with per-request outcomes
+  reject, plus **bulk approve / reject** with per-request outcomes. Two people
+  may compete for a slot — that's what the approval queue decides — but the same
+  person can't file the same request twice, and a refused approval names the
+  booking holding the slot so the admin can reject-and-notify in one step
 - **Audit trail** — every booking state change records who acted, when and why,
   shown as a timeline on the booking and request detail screens
 - **Calendar export** — a booking, or all your approved bookings, as an `.ics`
@@ -40,7 +43,7 @@ can neither see nor act on another campus's rooms, requests or reports.
 
 | Tier | Price | Limits / features |
 |------|-------|-------------------|
-| Free | GHS 0/mo | 5 rooms, 20 bookings/month, basic workflow |
+| Free | GHS 0/mo | 5 rooms (maintenance included), 20 bookings/month, basic workflow |
 | Campus Pro | GHS 500/mo | unlimited rooms & bookings, analytics dashboard |
 | Enterprise | Custom | multi-campus, API integrations, SLA (contact sales) |
 
@@ -159,8 +162,13 @@ required role returns **403**.
 **Halls**
 - `GET /api/halls` — optional filters: `q`, `minCapacity`, `projector`, `ac`,
   `microphone`, and `freeFrom`+`freeUntil` (supply both) for availability
-- `GET /api/halls/{id}`, `GET /api/halls/{id}/availability?date=`
-- `POST/PUT/DELETE /api/halls…`, `GET /api/halls/admin` (admin)
+- `GET /api/halls/{id}`, `GET /api/halls/{id}/availability?date=` — occupied
+  slots for a day, shown on Room Details and the booking form **without** naming
+  who booked them
+- `POST/PUT /api/halls…`, `GET /api/halls/admin` (admin)
+- `PATCH /api/halls/{id}/active` — `{ active }`, the maintenance toggle
+- `DELETE /api/halls/{id}` — removes the room for good; **400** if it has any
+  bookings (use maintenance for those, so the history keeps pointing somewhere)
 
 **Bookings**
 - `POST /api/bookings`, `POST /api/bookings/recurring`
@@ -169,13 +177,18 @@ required role returns **403**.
 - `POST /api/bookings/{bulk-approve,bulk-reject}` (admin) — returns
   `{ requested, succeeded[], failed[{id, reason}] }`; individual ids can fail
 - `GET /api/bookings/{id}/history` — audit trail
+- `GET /api/bookings/{id}/conflicts` (admin) — approved + pending bookings
+  competing for the same room and window, so a clash is visible before deciding
 - `GET /api/bookings/{id}/calendar.ics`, `GET /api/bookings/my/calendar.ics`
 
 **Other**
 - `GET /api/notifications?page=&size=` — paginated
   (`{ content, page, size, totalElements, totalPages, last }`, default 20, max 100);
   `/unread-count`, `PATCH /{id}/read`, `/read-all`
-- `GET/PATCH /api/users/me`, `GET /api/users` (admin)
+- `GET/PATCH /api/users/me`
+- `GET /api/users` (admin) — the directory for the caller's **own institution**
+- `POST /api/users` (admin) — provision an account at the caller's institution;
+  unlike public sign-up this may create another `ADMIN`
 - `GET /api/reports/overview`, `/summary`, `/export` (Campus Pro)
 - `GET /api/subscription`, `/plans`, `POST /api/subscription/upgrade` (admin)
 
