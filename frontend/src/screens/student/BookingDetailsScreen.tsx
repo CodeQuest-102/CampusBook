@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   Screen,
@@ -41,6 +42,27 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const [rescheduled, setRescheduled] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exportingIcs, setExportingIcs] = useState(false);
+
+  /** Write the booking as an .ics file, then hand it to the share sheet. */
+  const exportToCalendar = async () => {
+    setExportingIcs(true);
+    try {
+      const uri = await bookingsApi.downloadBookingIcs(booking.id);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'text/calendar',
+          dialogTitle: 'Add to calendar',
+        });
+      } else {
+        Alert.alert('Saved', `Calendar file saved to:\n${uri}`);
+      }
+    } catch (e) {
+      Alert.alert('Export failed', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setExportingIcs(false);
+    }
+  };
 
   const confirmReschedule = async () => {
     setSaving(true);
@@ -181,6 +203,15 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
             />
           </>
         )}
+
+        <Button
+          title="Add to Calendar"
+          variant="secondary"
+          icon="calendar-number-outline"
+          loading={exportingIcs}
+          onPress={exportToCalendar}
+          style={{ marginTop: spacing.md }}
+        />
 
         <BookingHistory bookingId={booking.id} />
       </Screen>

@@ -361,6 +361,31 @@ public class BookingService {
         return bookingAuditRepository.findByBookingIdOrderByCreatedAtAsc(bookingId);
     }
 
+    /**
+     * A single booking, for a caller allowed to see it: its owner, or an admin at
+     * the booking's institution.
+     */
+    public Booking getBookingFor(Long bookingId, User actor) {
+        Booking booking = getBookingById(bookingId);
+
+        boolean ownsBooking = booking.getUser().getId().equals(actor.getId());
+        boolean isAdmin = actor.getRole() != null && actor.getRole().name().equals("ADMIN");
+        if (!ownsBooking && !isAdmin) {
+            throw new SecurityException("You can only view your own bookings");
+        }
+        if (isAdmin && !ownsBooking) {
+            assertSameInstitution(booking.getHall(), actor);
+        }
+        return booking;
+    }
+
+    /** A user's APPROVED bookings — what belongs in a calendar feed. */
+    public List<Booking> getApprovedBookingsByUser(Long userId) {
+        return bookingRepository.findByUserIdOrderByStartTimeDesc(userId).stream()
+                .filter(b -> b.getStatus() == BookingStatus.APPROVED)
+                .toList();
+    }
+
     /** Why one id in a bulk action didn't go through. */
     public record BulkFailure(Long id, String reason) {}
 

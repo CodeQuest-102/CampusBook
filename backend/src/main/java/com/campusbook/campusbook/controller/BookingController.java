@@ -14,8 +14,11 @@ import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.service.BookingService;
+import com.campusbook.campusbook.service.CalendarService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,6 +32,9 @@ public class BookingController {
 
     @Autowired
     private BookingService bookingService;
+
+    @Autowired
+    private CalendarService calendarService;
 
     @PostMapping
     public ResponseEntity<?> createBooking(@AuthenticationPrincipal User user,
@@ -118,6 +124,30 @@ public class BookingController {
                                                          @Valid @RequestBody BulkBookingRequest request) {
         return ResponseEntity.ok(BulkActionResponse.from(
                 bookingService.rejectAll(request.getIds(), user, request.getReason())));
+    }
+
+    /** One booking as an .ics file, for importing into a calendar app. */
+    @GetMapping(value = "/{id}/calendar.ics", produces = "text/calendar")
+    public ResponseEntity<String> bookingCalendar(@AuthenticationPrincipal User user,
+                                                  @PathVariable Long id) {
+        String ics = calendarService.toIcs(bookingService.getBookingFor(id, user));
+        return icsResponse(ics, "campusbook-booking-" + id + ".ics");
+    }
+
+    /** The caller's approved bookings as a single .ics feed. */
+    @GetMapping(value = "/my/calendar.ics", produces = "text/calendar")
+    public ResponseEntity<String> myCalendar(@AuthenticationPrincipal User user) {
+        // Only approved bookings: a pending request isn't a commitment yet, and a
+        // rejected/cancelled one shouldn't sit in someone's calendar at all.
+        String ics = calendarService.toIcs(bookingService.getApprovedBookingsByUser(user.getId()));
+        return icsResponse(ics, "campusbook-my-bookings.ics");
+    }
+
+    private ResponseEntity<String> icsResponse(String ics, String filename) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(new MediaType("text", "calendar"))
+                .body(ics);
     }
 
     /** A booking's audit trail. Visible to the booker and to admins at its institution. */
