@@ -40,6 +40,8 @@ jobs:
           DB_USERNAME: campusbook_user
           DB_PASSWORD: yourpassword
           JWT_SECRET: ci-test-secret-key-at-least-32-bytes-long-1234567890
+          # No SMTP in CI — reset codes take the console path.
+          MAIL_ENABLED: "false"
         run: ./mvnw -q -B test
 
   frontend:
