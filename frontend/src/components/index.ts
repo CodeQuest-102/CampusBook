@@ -21,3 +21,4 @@ export {
 } from './pickers';
 export { default as SuccessOverlay } from './SuccessOverlay';
 export { default as StateView } from './StateView';
+export { default as BookingHistory } from './BookingHistory';

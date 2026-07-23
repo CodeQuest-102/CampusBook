@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TopBar, Avatar, Button, StatusPill, DetailRow, SuccessOverlay } from '../../components';
+import {
+  Screen,
+  TopBar,
+  Avatar,
+  Button,
+  StatusPill,
+  DetailRow,
+  SuccessOverlay,
+  BookingHistory,
+} from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
 import { bookingsApi, ApiError } from '../../api';
 import type { RootStackParamList } from '../../navigation/types';
@@ -56,6 +65,8 @@ export default function RequestDetailsScreen({ route, navigation }: Props) {
           )}
           {request.notes && <DetailRow label="Additional Notes" value={request.notes} />}
         </View>
+
+        <BookingHistory bookingId={request.id} />
       </Screen>
 
       <View style={styles.footer}>

@@ -2,6 +2,8 @@ import { apiFetch } from './client';
 import type {
   BookingResponse,
   BookingPayload,
+  BookingAuditResponse,
+  BulkActionResponse,
   ReschedulePayload,
   RecurringBookingPayload,
   RecurringBookingResponse,
@@ -43,6 +45,33 @@ export function rejectBooking(id: number | string, reason?: string): Promise<Boo
     method: 'POST',
     body: reason ? { reason } : undefined,
   });
+}
+
+/**
+ * Approve several requests at once (admin). Individual ids can fail — always
+ * check `failed` in the response rather than assuming success.
+ */
+export function bulkApprove(ids: (number | string)[]): Promise<BulkActionResponse> {
+  return apiFetch<BulkActionResponse>('/api/bookings/bulk-approve', {
+    method: 'POST',
+    body: { ids: ids.map(Number) },
+  });
+}
+
+/** Reject several requests at once with a shared reason (admin). */
+export function bulkReject(
+  ids: (number | string)[],
+  reason?: string,
+): Promise<BulkActionResponse> {
+  return apiFetch<BulkActionResponse>('/api/bookings/bulk-reject', {
+    method: 'POST',
+    body: { ids: ids.map(Number), reason },
+  });
+}
+
+/** A booking's audit trail — visible to its booker and to admins. */
+export function bookingHistory(id: number | string): Promise<BookingAuditResponse[]> {
+  return apiFetch<BookingAuditResponse[]>(`/api/bookings/${id}/history`);
 }
 
 export function cancelBooking(id: number | string): Promise<BookingResponse> {

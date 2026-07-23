@@ -4,9 +4,11 @@ import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.enums.BookingAuditAction;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.enums.SubscriptionTier;
+import com.campusbook.campusbook.repository.BookingAuditRepository;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
@@ -35,6 +37,7 @@ class BookingServiceTest {
     @Mock BookingRepository bookingRepository;
     @Mock HallRepository hallRepository;
     @Mock NotificationService notificationService;
+    @Mock BookingAuditRepository bookingAuditRepository;
 
     @InjectMocks BookingService bookingService;
 
@@ -232,6 +235,61 @@ class BookingServiceTest {
                 .hasMessageContaining("another institution");
 
         verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    void bulkApprove_reportsPerIdOutcomeInsteadOfFailingWholesale() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+
+        Booking first = booking(hall, user(1L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        Booking second = booking(hall, user(2L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        second.setId(11L);
+
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(first));
+        when(bookingRepository.findById(11L)).thenReturn(Optional.of(second));
+        // The first approval succeeds; the second finds the slot taken.
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(10L), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(11L), any(), any()))
+                .thenReturn(List.of(new Booking()));
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        BookingService.BulkResult result = bookingService.approveAll(List.of(10L, 11L), admin);
+
+        assertThat(result.succeeded()).containsExactly(10L);
+        assertThat(result.failed()).hasSize(1);
+        assertThat(result.failed().get(0).id()).isEqualTo(11L);
+        assertThat(result.failed().get(0).reason()).contains("already booked");
+        // The successful one still went through — one failure doesn't undo the batch.
+        assertThat(first.getStatus()).isEqualTo(BookingStatus.APPROVED);
+        assertThat(second.getStatus()).isEqualTo(BookingStatus.PENDING);
+    }
+
+    @Test
+    void bulkApprove_recordsAnAuditEntryPerSuccess() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+
+        Booking pending = booking(hall, user(1L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(pending));
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(10L), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        bookingService.approveAll(List.of(10L), admin);
+
+        verify(bookingAuditRepository).save(argThat(a ->
+                a.getAction() == BookingAuditAction.APPROVED
+                        && a.getBookingId().equals(10L)
+                        && a.getActor().getId().equals(50L)));
     }
 
     @Test

@@ -11,6 +11,7 @@ import {
   PickerField,
   PickerSheet,
   SuccessOverlay,
+  BookingHistory,
   formatDate,
   parseDate,
 } from '../../components';
@@ -180,6 +181,8 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
             />
           </>
         )}
+
+        <BookingHistory bookingId={booking.id} />
       </Screen>
 
       <PickerSheet

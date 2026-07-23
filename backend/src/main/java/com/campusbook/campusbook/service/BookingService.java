@@ -1,12 +1,15 @@
 package com.campusbook.campusbook.service;
 
 import com.campusbook.campusbook.entity.Booking;
+import com.campusbook.campusbook.entity.BookingAudit;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.enums.BookingAuditAction;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.NotificationType;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
+import com.campusbook.campusbook.repository.BookingAuditRepository;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.dto.RecurringBookingResponse;
@@ -35,6 +38,9 @@ public class BookingService {
 
     @Autowired
     private SubscriptionCatalog subscriptionCatalog;
+
+    @Autowired
+    private BookingAuditRepository bookingAuditRepository;
 
     public Booking createBooking(Booking booking) {
         validateBookingWindow(booking.getStartTime(), booking.getEndTime());
@@ -68,6 +74,9 @@ public class BookingService {
         booking.setHall(hall);
         booking.setStatus(BookingStatus.PENDING);
         Booking saved = bookingRepository.save(booking);
+
+        audit(saved.getId(), saved.getUser(), BookingAuditAction.CREATED,
+                "Requested " + hall.getBlock() + " " + hall.getRoomCode());
 
         notificationService.notifyInstitutionAdmins(
             hall.getInstitution().getId(),
@@ -143,7 +152,11 @@ public class BookingService {
                 b.setStartTime(start);
                 b.setEndTime(end);
                 b.setStatus(BookingStatus.PENDING);
-                created.add(bookingRepository.save(b));
+                Booking savedOccurrence = bookingRepository.save(b);
+                created.add(savedOccurrence);
+
+                audit(savedOccurrence.getId(), user, BookingAuditAction.CREATED,
+                        "Requested as part of a weekly series");
             } catch (IllegalArgumentException | IllegalStateException | SubscriptionLimitExceededException e) {
                 skipped.add(new RecurringBookingResponse.SkippedOccurrence(date, e.getMessage()));
             }
@@ -183,6 +196,8 @@ public class BookingService {
         booking.setApprovedBy(admin);
         Booking saved = bookingRepository.save(booking);
 
+        audit(saved.getId(), admin, BookingAuditAction.APPROVED, null);
+
         notificationService.notifyUser(
             saved.getUser(),
             NotificationType.BOOKING_APPROVED,
@@ -201,6 +216,8 @@ public class BookingService {
         booking.setApprovedBy(admin);
         booking.setRejectionReason(reason);
         Booking saved = bookingRepository.save(booking);
+
+        audit(saved.getId(), admin, BookingAuditAction.REJECTED, reason);
 
         notificationService.notifyUser(
             saved.getUser(),
@@ -233,6 +250,9 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.CANCELLED);
         Booking saved = bookingRepository.save(booking);
+
+        audit(saved.getId(), actor, BookingAuditAction.CANCELLED,
+                isAdmin && !ownsBooking ? "Cancelled by an administrator" : null);
 
         if (isAdmin && !ownsBooking) {
             notificationService.notifyUser(
@@ -286,6 +306,9 @@ public class BookingService {
         booking.setRejectionReason(null);
         Booking saved = bookingRepository.save(booking);
 
+        audit(saved.getId(), actor, BookingAuditAction.RESCHEDULED,
+                "Moved to " + newStart + " – " + newEnd + "; awaiting re-approval");
+
         notificationService.notifyInstitutionAdmins(
                 saved.getHall().getInstitution().getId(),
                 NotificationType.NEW_BOOKING_REQUEST,
@@ -317,6 +340,79 @@ public class BookingService {
 
     public List<Booking> getBookingsByUser(Long userId) {
         return bookingRepository.findByUserIdOrderByStartTimeDesc(userId);
+    }
+
+    /**
+     * A booking's history, oldest first, for a caller allowed to see it: the
+     * person who booked it, or an admin at the booking's own institution.
+     */
+    public List<BookingAudit> getHistoryFor(Long bookingId, User actor) {
+        Booking booking = getBookingById(bookingId);
+
+        boolean ownsBooking = booking.getUser().getId().equals(actor.getId());
+        boolean isAdmin = actor.getRole() != null && actor.getRole().name().equals("ADMIN");
+        if (!ownsBooking && !isAdmin) {
+            throw new SecurityException("You can only view the history of your own bookings");
+        }
+        if (isAdmin && !ownsBooking) {
+            assertSameInstitution(booking.getHall(), actor);
+        }
+
+        return bookingAuditRepository.findByBookingIdOrderByCreatedAtAsc(bookingId);
+    }
+
+    /** Why one id in a bulk action didn't go through. */
+    public record BulkFailure(Long id, String reason) {}
+
+    /** Outcome of a bulk action, per id. */
+    public record BulkResult(List<Long> succeeded, List<BulkFailure> failed) {}
+
+    /**
+     * Approve many bookings, reporting each id's outcome rather than a single
+     * status. Approval legitimately fails per booking — most often because
+     * another approval already took the slot — and collapsing that into one
+     * error would hide which ones didn't make it.
+     *
+     * <p>Each id is attempted independently; a failure leaves earlier successes
+     * committed, since nothing here shares an enclosing transaction.
+     */
+    public BulkResult approveAll(List<Long> ids, User admin) {
+        return applyToEach(ids, id -> approveBooking(id, admin));
+    }
+
+    /** Reject many bookings with a shared reason. See {@link #approveAll}. */
+    public BulkResult rejectAll(List<Long> ids, User admin, String reason) {
+        return applyToEach(ids, id -> rejectBooking(id, admin, reason));
+    }
+
+    private BulkResult applyToEach(List<Long> ids, java.util.function.Consumer<Long> action) {
+        List<Long> succeeded = new ArrayList<>();
+        List<BulkFailure> failed = new ArrayList<>();
+
+        for (Long id : ids) {
+            try {
+                action.accept(id);
+                succeeded.add(id);
+            } catch (RuntimeException e) {
+                String reason = e.getMessage() == null ? "Could not be processed" : e.getMessage();
+                failed.add(new BulkFailure(id, reason));
+            }
+        }
+        return new BulkResult(succeeded, failed);
+    }
+
+    /**
+     * Append one entry to a booking's history. Called at the same points that
+     * already fire notifications, so the trail covers every state change.
+     */
+    private void audit(Long bookingId, User actor, BookingAuditAction action, String details) {
+        BookingAudit entry = new BookingAudit();
+        entry.setBookingId(bookingId);
+        entry.setActor(actor);
+        entry.setAction(action);
+        entry.setDetails(details);
+        entry.setCreatedAt(LocalDateTime.now());
+        bookingAuditRepository.save(entry);
     }
 
     /**

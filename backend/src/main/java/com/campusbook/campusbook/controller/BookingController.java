@@ -1,7 +1,10 @@
 package com.campusbook.campusbook.controller;
 
+import com.campusbook.campusbook.dto.BookingAuditResponse;
 import com.campusbook.campusbook.dto.BookingRequest;
 import com.campusbook.campusbook.dto.BookingResponse;
+import com.campusbook.campusbook.dto.BulkActionResponse;
+import com.campusbook.campusbook.dto.BulkBookingRequest;
 import com.campusbook.campusbook.dto.RecurringBookingRequest;
 import com.campusbook.campusbook.dto.RecurringBookingResponse;
 import com.campusbook.campusbook.dto.RejectBookingRequest;
@@ -94,6 +97,37 @@ public class BookingController {
                                             @RequestBody(required = false) RejectBookingRequest request) {
         String reason = request == null ? null : request.getReason();
         return ResponseEntity.ok(BookingResponse.from(bookingService.rejectBooking(id, user, reason)));
+    }
+
+    /**
+     * Approve several pending requests at once. Returns each id's outcome —
+     * some may fail (e.g. the slot was taken) while others succeed.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/bulk-approve")
+    public ResponseEntity<BulkActionResponse> bulkApprove(@AuthenticationPrincipal User user,
+                                                          @Valid @RequestBody BulkBookingRequest request) {
+        return ResponseEntity.ok(BulkActionResponse.from(
+                bookingService.approveAll(request.getIds(), user)));
+    }
+
+    /** Reject several pending requests at once with a shared reason. */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/bulk-reject")
+    public ResponseEntity<BulkActionResponse> bulkReject(@AuthenticationPrincipal User user,
+                                                         @Valid @RequestBody BulkBookingRequest request) {
+        return ResponseEntity.ok(BulkActionResponse.from(
+                bookingService.rejectAll(request.getIds(), user, request.getReason())));
+    }
+
+    /** A booking's audit trail. Visible to the booker and to admins at its institution. */
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<BookingAuditResponse>> getHistory(@AuthenticationPrincipal User user,
+                                                                 @PathVariable Long id) {
+        List<BookingAuditResponse> history = bookingService.getHistoryFor(id, user).stream()
+                .map(BookingAuditResponse::from)
+                .toList();
+        return ResponseEntity.ok(history);
     }
 
     @PostMapping("/{id}/cancel")

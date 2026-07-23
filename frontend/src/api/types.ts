@@ -107,6 +107,32 @@ export interface UpdateProfilePayload {
   department?: string;
 }
 
+export type BookingAuditAction =
+  | 'CREATED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'RESCHEDULED';
+
+/** One entry in a booking's audit trail. */
+export interface BookingAuditResponse {
+  id: number;
+  action: BookingAuditAction;
+  actorName: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
+/**
+ * Per-id outcome of a bulk approve/reject. Some ids can fail (e.g. the slot was
+ * taken) while others succeed, so the caller must inspect `failed`.
+ */
+export interface BulkActionResponse {
+  requested: number;
+  succeeded: number[];
+  failed: { id: number; reason: string }[];
+}
+
 /** Pagination envelope returned by list endpoints (mirrors backend PagedResponse). */
 export interface PagedResponse<T> {
   content: T[];
