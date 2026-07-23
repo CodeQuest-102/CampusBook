@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   Dimensions,
+  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -9,10 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import type { ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen, Button } from '../components';
-import { colors, fontWeight, radius, spacing, typography } from '../theme';
+import { colors, fontWeight, spacing, typography } from '../theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
@@ -20,24 +21,24 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 const { width } = Dimensions.get('window');
 
 interface Slide {
-  icon: keyof typeof Ionicons.glyphMap;
+  image: ImageSourcePropType;
   title: string;
   body: string;
 }
 
 const SLIDES: Slide[] = [
   {
-    icon: 'calendar-outline',
+    image: require('../assets/images/welcome.png'),
     title: 'Welcome to CampusBook',
     body: 'Book lecture rooms easily, anytime, anywhere.',
   },
   {
-    icon: 'search-outline',
+    image: require('../assets/images/secondonboarding.png'),
     title: 'Real-time Availability',
     body: 'Check room availability and book in just a few taps.',
   },
   {
-    icon: 'notifications-outline',
+    image: require('../assets/images/last.png'),
     title: 'Stay Organized',
     body: 'Track your bookings, get notifications and manage everything in one place.',
   },
@@ -84,11 +85,11 @@ export default function OnboardingScreen({ navigation }: Props) {
       >
         {SLIDES.map((item, i) => (
           <View key={i} style={[styles.slide, { width }]}>
-            <View style={styles.illustration}>
-              <Ionicons name={item.icon} size={92} color={colors.primary} />
-            </View>
             <Text style={styles.title}>{item.title}</Text>
             <Text style={styles.body}>{item.body}</Text>
+            <View style={styles.illustration}>
+              <Image source={item.image} style={styles.image} resizeMode="contain" />
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -112,13 +113,15 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   slide: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
   illustration: {
-    width: 200,
-    height: 200,
-    borderRadius: radius.xl,
-    backgroundColor: colors.primarySoft,
+    width: 260,
+    height: 260,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.huge,
+    marginTop: spacing.xl,
+  },
+  image: {
+    width: 240,
+    height: 240,
   },
   title: { ...typography.h1, textAlign: 'center', marginBottom: spacing.md },
   body: {

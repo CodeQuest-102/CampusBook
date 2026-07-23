@@ -21,7 +21,7 @@ export function getSummary(period: ReportPeriod = 'month'): Promise<ReportsRespo
  */
 export async function downloadReportCsv(period: ReportPeriod = 'month'): Promise<string> {
   const token = await loadToken();
-  const target = `${FileSystem.cacheDirectory}campusbook-report-${period}.csv`;
+  const target = `${(FileSystem as any).cacheDirectory ?? ''}campusbook-report-${period}.csv`;
   const res = await FileSystem.downloadAsync(
     `${API_BASE_URL}/api/reports/export?period=${period}`,
     target,

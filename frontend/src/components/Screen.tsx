@@ -11,7 +11,7 @@ interface Props {
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
   contentStyle?: ViewStyle;
   /** Optional pull-to-refresh control (only used when `scroll` is true). */
-  refreshControl?: React.ReactElement;
+  refreshControl?: React.ReactElement<any>;
 }
 
 /** Standard white screen surface with safe-area handling + optional scroll. */

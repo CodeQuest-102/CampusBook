@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { colors, fontWeight, radius, spacing } from '../theme';
+
 
 interface Props {
   /** False while the session is still being restored — the splash waits for this. */
@@ -67,7 +68,11 @@ export default function SplashScreen({ canExit = true, onFinish }: Props) {
             { opacity: badge, transform: [{ scale: badgeScale }] },
           ]}
         >
-          <Ionicons name="cube" size={56} color={colors.white} />
+          <Image
+            source={require('../assets/images/splashScreen.png')}
+            style={{ width: 130, height: 130 }}
+            resizeMode="contain"
+          />
         </Animated.View>
         <Animated.View
           style={{
@@ -80,12 +85,18 @@ export default function SplashScreen({ canExit = true, onFinish }: Props) {
           <Text style={styles.subtitle}>Smart Lecture Room{'\n'}Booking System</Text>
         </Animated.View>
       </View>
-
-      <Animated.View style={[styles.footer, { opacity: text }]}>
-        <View style={styles.knustBadge}>
-          <Ionicons name="school" size={22} color={colors.primaryDark} />
+      <Animated.View style={[styles.footer, { opacity: text, flexDirection: 'row', alignItems: 'center' }]}>
+        <Image
+          source={require('../assets/images/knustlogo.png')}
+          style={{ width: 44, height: 44, marginRight: spacing.md }}
+          resizeMode="contain"
+        />
+        <View style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+          <Text style={styles.knust}>KNUST</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontStyle: 'italic' }}>
+            Nyansapɔ wɔsane no badwenma
+          </Text>
         </View>
-        <Text style={styles.knust}>KNUST</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -103,10 +114,8 @@ const styles = StyleSheet.create({
   },
   logoBlock: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   logoBadge: {
-    width: 110,
-    height: 110,
-    borderRadius: radius.xl,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 140,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
