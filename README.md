@@ -35,6 +35,14 @@ subscription model (individual users are never charged).
 | Campus Pro | GHS 500/mo | unlimited rooms & bookings, analytics dashboard |
 | Enterprise | Custom | multi-campus, API integrations, SLA (contact sales) |
 
+## Roles & Tiers
+
+| Role | Access Level | Permissions |
+|------|--------------|-------------|
+| Student Leader | STUDENT_LEADER | Browse rooms, make bookings |
+| Lecturer | LECTURER | Same access as Student Leader |
+| Admin | ADMIN | Approve/reject bookings, manage rooms and users, view analytics, manage subscriptions |
+
 ## Project structure
 
 ```
