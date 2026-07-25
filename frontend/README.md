@@ -26,7 +26,9 @@ src/
   config.ts                API base URL (env-overridable)
   theme.ts                 Design system: colors, spacing, radius, fonts, shadows
   api/                     fetch client, endpoint modules, adapters, types, tests
+  validation.ts            Shared form rules (KNUST email, campus IDs, passwords)
   hooks/useApiData.ts      Focus-aware data loading + pull-to-refresh
+  hooks/useApiList.ts      Same, for paginated endpoints (append pages, loadMore)
   data/placeholder.ts      Shared UI type definitions
   components/               Reusable UI (Button, RoomCard, StateView, Screen, …)
   navigation/              RootNavigator (auth gate + role tabs), AppContext (auth)
@@ -46,12 +48,28 @@ Login takes an email (or staff/student ID) + password and calls the backend; the
 role comes from the account, not a picker. The navigator swaps between the auth
 stack and the app based on the stored token, and a 401 signs the user out.
 
+Password reset is a two-step flow: request a code, then enter the code with a new
+password. In development the backend prints the code to its console, so the flow
+works without an SMTP account.
+
+## Notable flows
+
+- **Browse Rooms** — search debounces into the API; the filter sheet (capacity,
+  equipment, availability window) filters server-side, not over a loaded list.
+- **Pending Requests** (admin) — long-press to enter selection mode, then bulk
+  approve/reject. The summary names any request that failed and why.
+- **Booking / Request details** — an audit timeline of who did what, and an
+  "Add to Calendar" export that writes an `.ics` and opens the share sheet.
+- **Notifications** — paginated infinite scroll via `useApiList`.
+
 ## Testing
 
 ```bash
-npm test              # Jest — adapter unit tests
+npm test              # Jest — validation, adapters, screens
 npx tsc --noEmit      # type-check
 ```
+
+See [TESTING.md](TESTING.md) for the manual walkthrough.
 
 ## Design system
 

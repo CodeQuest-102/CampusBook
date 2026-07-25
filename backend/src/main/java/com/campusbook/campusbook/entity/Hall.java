@@ -8,7 +8,8 @@ import lombok.NoArgsConstructor;
 
 
 @Entity
-@Table(name = "halls")
+@Table(name = "halls", uniqueConstraints = @UniqueConstraint(
+        name = "uk_halls_institution_room_code", columnNames = {"institution_id", "room_code"}))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -22,7 +23,7 @@ public class Hall {
     private String block;          // e.g. "Science Complex Block"
 
     @NotBlank
-    @Column(unique = true, name = "room_code")
+    @Column(name = "room_code")    // unique per institution — see @Table above
     private String roomCode;       // e.g. "GF1", "SF1" — what's on the door
 
     @ManyToOne

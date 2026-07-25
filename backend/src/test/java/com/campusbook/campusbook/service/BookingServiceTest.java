@@ -4,9 +4,11 @@ import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.enums.BookingAuditAction;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.enums.SubscriptionTier;
+import com.campusbook.campusbook.repository.BookingAuditRepository;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
@@ -35,6 +37,7 @@ class BookingServiceTest {
     @Mock BookingRepository bookingRepository;
     @Mock HallRepository hallRepository;
     @Mock NotificationService notificationService;
+    @Mock BookingAuditRepository bookingAuditRepository;
 
     @InjectMocks BookingService bookingService;
 
@@ -63,11 +66,38 @@ class BookingServiceTest {
     }
 
     private User user(long id) {
+        return user(id, institution());
+    }
+
+    private User user(long id, Institution institution) {
         User u = new User();
         u.setId(id);
         u.setFullName("Test User");
         u.setRole(Role.STUDENT_LEADER);
+        u.setInstitution(institution);
         return u;
+    }
+
+    private Institution otherInstitution() {
+        Institution i = new Institution();
+        i.setId(99L);
+        i.setName("Other Campus");
+        i.setTier(SubscriptionTier.FREE);
+        return i;
+    }
+
+    /**
+     * A booking already holding a slot. Times and a requester are always present
+     * on a real one, and the conflict message names both, so a bare stub here
+     * would be testing something that can't occur.
+     */
+    private Booking holder(Hall hall, String requesterName, LocalDateTime start, LocalDateTime end) {
+        User owner = user(77L, hall.getInstitution());
+        owner.setFullName(requesterName);
+        Booking b = booking(hall, owner, start, end);
+        b.setId(99L);
+        b.setStatus(BookingStatus.APPROVED);
+        return b;
     }
 
     private Booking booking(Hall hall, User user, LocalDateTime start, LocalDateTime end) {
@@ -104,13 +134,100 @@ class BookingServiceTest {
 
         when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
         when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
-                .thenReturn(List.of(new Booking()));
+                .thenReturn(List.of(holder(hall, "Ama Mensah", start, start.plusHours(2))));
+
+        // The message names the room and who holds it — an admin hitting this on
+        // approval needs to know which booking is in the way to act on it.
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already booked")
+                .hasMessageContaining("Science Complex Block GF1")
+                .hasMessageContaining("Ama Mensah");
+
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    void createBooking_rejectsASecondPendingRequestFromTheSamePerson() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User requester = user(1L, inst);
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, requester, start, start.plusHours(2));
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.findOwnPendingOverlaps(eq(2L), eq(1L), anyLong(), any(), any()))
+                .thenReturn(List.of(booking(hall, requester, start, start.plusHours(2))));
 
         assertThatThrownBy(() -> bookingService.createBooking(b))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("overlapping");
+                .hasMessageContaining("already have a pending request");
 
         verify(bookingRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    /**
+     * Two people wanting the same slot is a decision for the approval queue, not
+     * a race the first requester wins outright — only a duplicate from the same
+     * person is refused.
+     */
+    @Test
+    void createBooking_allowsADifferentPersonToRequestTheSameSlot() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, user(2L, inst), start, start.plusHours(2));
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        // Someone else's pending request doesn't show up in *this* user's lookup.
+        when(bookingRepository.findOwnPendingOverlaps(eq(2L), eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        Booking saved = bookingService.createBooking(b);
+
+        assertThat(saved.getStatus()).isEqualTo(BookingStatus.PENDING);
+        verify(bookingRepository).save(any(Booking.class));
+    }
+
+    @Test
+    void createBooking_rejectsMoreAttendeesThanTheHallSeats() {
+        Hall hall = activeHall(institution());
+        hall.setCapacity(30);
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, user(1L), start, start.plusHours(2));
+        b.setAttendance(31);
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("seats 30");
+
+        verify(bookingRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void createBooking_allowsAttendanceUpToCapacity() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        hall.setCapacity(30);
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, user(1L), start, start.plusHours(2));
+        b.setAttendance(30); // exactly full is fine
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(bookingService.createBooking(b).getAttendance()).isEqualTo(30);
     }
 
     @Test
@@ -150,6 +267,96 @@ class BookingServiceTest {
         assertThatThrownBy(() ->
                 bookingService.rescheduleBooking(10L, stranger, newStart, newStart.plusHours(2)))
                 .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void approve_rejectsAdminFromAnotherInstitution() {
+        Hall hall = activeHall(institution()); // institution id 1
+        Booking pending = booking(hall, user(1L),
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(2));
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(pending));
+
+        User foreignAdmin = user(50L, otherInstitution()); // institution id 99
+        foreignAdmin.setRole(Role.ADMIN);
+
+        assertThatThrownBy(() -> bookingService.approveBooking(10L, foreignAdmin))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("another institution");
+
+        verify(bookingRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void createBooking_rejectsHallAtAnotherInstitution() {
+        Hall hall = activeHall(institution()); // institution id 1
+        User foreignUser = user(7L, otherInstitution()); // institution id 99
+        LocalDateTime start = LocalDateTime.now().plusDays(1);
+        Booking b = booking(hall, foreignUser, start, start.plusHours(2));
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.of(hall));
+
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("another institution");
+
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    void bulkApprove_reportsPerIdOutcomeInsteadOfFailingWholesale() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+
+        Booking first = booking(hall, user(1L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        Booking second = booking(hall, user(2L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        second.setId(11L);
+
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(first));
+        when(bookingRepository.findById(11L)).thenReturn(Optional.of(second));
+        // The first approval succeeds; the second finds the slot taken.
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(10L), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(11L), any(), any()))
+                .thenReturn(List.of(holder(hall, "Ama Mensah",
+                        LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(2))));
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        BookingService.BulkResult result = bookingService.approveAll(List.of(10L, 11L), admin);
+
+        assertThat(result.succeeded()).containsExactly(10L);
+        assertThat(result.failed()).hasSize(1);
+        assertThat(result.failed().get(0).id()).isEqualTo(11L);
+        assertThat(result.failed().get(0).reason()).contains("already booked");
+        // The successful one still went through — one failure doesn't undo the batch.
+        assertThat(first.getStatus()).isEqualTo(BookingStatus.APPROVED);
+        assertThat(second.getStatus()).isEqualTo(BookingStatus.PENDING);
+    }
+
+    @Test
+    void bulkApprove_recordsAnAuditEntryPerSuccess() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+
+        Booking pending = booking(hall, user(1L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(pending));
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(10L), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+        bookingService.approveAll(List.of(10L), admin);
+
+        verify(bookingAuditRepository).save(argThat(a ->
+                a.getAction() == BookingAuditAction.APPROVED
+                        && a.getBookingId().equals(10L)
+                        && a.getActor().getId().equals(50L)));
     }
 
     @Test

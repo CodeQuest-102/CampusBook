@@ -2,18 +2,10 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import {
-  Screen,
-  TopBar,
-  TextField,
-  Button,
-  StatusPill,
-  PickerField,
-  PickerSheet,
-  formatDate,
-} from '../../components';
+import { Screen, TopBar, TextField, Button, StatusPill, PickerField, PickerSheet, formatDate, KeyboardAvoider, RoomAvailability } from '../../components';
 import { colors, fontWeight, radius, spacing, typography } from '../../theme';
 import { bookingsApi, toLocalDateTimeIso, toLocalDateString, ApiError } from '../../api';
+import { NOTES_MAX_LENGTH, PURPOSE_MAX_LENGTH, validateAttendance } from '../../validation';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingForm'>;
@@ -47,6 +39,7 @@ export default function BookingFormScreen({ route, navigation }: Props) {
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
   // Draft values so the sheet can be confirmed with "Done" or dismissed to cancel.
   const [draftDate, setDraftDate] = useState(date);
@@ -85,7 +78,15 @@ export default function BookingFormScreen({ route, navigation }: Props) {
       setFormError('The repeat-until date must be after the first booking date.');
       return;
     }
+    // The room's capacity is already on screen just above this field.
+    const attendanceProblem = validateAttendance(attendance, room.capacity);
+    if (attendanceProblem) {
+      setFormError(null);
+      setAttendanceError(attendanceProblem);
+      return;
+    }
     setFormError(null);
+    setAttendanceError(null);
     setSubmitting(true);
     const parsedAttendance = parseInt(attendance, 10);
     const attendanceValue = Number.isNaN(parsedAttendance) ? undefined : parsedAttendance;
@@ -131,7 +132,7 @@ export default function BookingFormScreen({ route, navigation }: Props) {
   };
 
   return (
-    <>
+    <KeyboardAvoider>
       <TopBar variant="title" title="New Booking" onBack={() => navigation.goBack()} />
       <Screen scroll>
         <Text style={styles.groupLabel}>Room</Text>
@@ -172,9 +173,15 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           />
         </View>
 
+        <Text style={styles.groupLabel}>Already booked on {formatDate(date)}</Text>
+        <View style={{ marginBottom: spacing.lg }}>
+          <RoomAvailability roomId={room.id} date={date} />
+        </View>
+
         <TextField
           label="Purpose / Event Title"
           placeholder="Department Meeting"
+          maxLength={PURPOSE_MAX_LENGTH}
           value={purpose}
           onChangeText={setPurpose}
         />
@@ -182,14 +189,20 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           label="Expected Attendance"
           placeholder="80"
           keyboardType="number-pad"
+          helper={`This room seats ${room.capacity}`}
+          error={attendanceError}
           value={attendance}
-          onChangeText={setAttendance}
+          onChangeText={(t) => {
+            setAttendance(t);
+            if (attendanceError) setAttendanceError(null);
+          }}
         />
         <TextField
           label="Additional Notes (Optional)"
           placeholder="Any other notes..."
           multiline
           numberOfLines={3}
+          maxLength={NOTES_MAX_LENGTH}
           value={notes}
           onChangeText={setNotes}
           containerStyle={{ marginBottom: spacing.sm }}
@@ -236,7 +249,7 @@ export default function BookingFormScreen({ route, navigation }: Props) {
         onDone={confirmPicker}
         onCancel={() => setPicker(null)}
       />
-    </>
+    </KeyboardAvoider>
   );
 }
 

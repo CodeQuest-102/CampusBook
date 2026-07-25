@@ -1,8 +1,14 @@
 import { apiFetch } from './client';
-import type { NotificationResponse } from './types';
+import type { NotificationResponse, PagedResponse } from './types';
 
-export function listNotifications(): Promise<NotificationResponse[]> {
-  return apiFetch<NotificationResponse[]>('/api/notifications');
+/** One page of notifications, newest first. Defaults match the server (page 0, size 20). */
+export function listNotifications(
+  page = 0,
+  size = 20,
+): Promise<PagedResponse<NotificationResponse>> {
+  return apiFetch<PagedResponse<NotificationResponse>>(
+    `/api/notifications?page=${page}&size=${size}`,
+  );
 }
 
 export function unreadCount(): Promise<{ unreadCount: number }> {

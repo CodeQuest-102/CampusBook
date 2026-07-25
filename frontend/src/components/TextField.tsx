@@ -17,6 +17,10 @@ interface Props extends TextInputProps {
   icon?: keyof typeof Ionicons.glyphMap;
   secure?: boolean;
   containerStyle?: ViewStyle;
+  /** Validation message shown below the field; also reddens the border. */
+  error?: string | null;
+  /** Muted hint below the field, shown only when there's no error. */
+  helper?: string;
 }
 
 /** Labelled input with optional leading icon and password reveal toggle. */
@@ -25,6 +29,8 @@ export default function TextField({
   icon,
   secure,
   containerStyle,
+  error,
+  helper,
   ...inputProps
 }: Props) {
   const [focused, setFocused] = useState(false);
@@ -33,7 +39,7 @@ export default function TextField({
   return (
     <View style={[styles.wrapper, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View style={[styles.field, focused && styles.fieldFocused]}>
+      <View style={[styles.field, focused && styles.fieldFocused, !!error && styles.fieldError]}>
         {icon && (
           <Ionicons name={icon} size={18} color={colors.textTertiary} style={styles.leadingIcon} />
         )}
@@ -55,6 +61,11 @@ export default function TextField({
           </TouchableOpacity>
         )}
       </View>
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : helper ? (
+        <Text style={styles.helper}>{helper}</Text>
+      ) : null}
     </View>
   );
 }
@@ -76,6 +87,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.white,
   },
+  fieldError: { borderColor: colors.danger },
+  error: {
+    ...typography.caption,
+    color: colors.danger,
+    marginTop: spacing.xs,
+  },
+  helper: { ...typography.caption, marginTop: spacing.xs },
   leadingIcon: { marginRight: spacing.sm },
   input: {
     flex: 1,

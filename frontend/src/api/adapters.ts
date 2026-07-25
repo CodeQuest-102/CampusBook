@@ -250,13 +250,21 @@ export function userToDirectory(u: UserResponse): DirectoryUser {
 
 /* --------------------------- availability -------------------------------- */
 
+/**
+ * Occupied slots for a room on a day, for anyone browsing it.
+ *
+ * The response carries `bookedBy`, but this deliberately drops it: a student
+ * picking a room needs to know *that* a slot is taken, not who took it. Naming
+ * the holder would turn every room page into a roster of who is meeting when.
+ * Admins see names on the request screen, where they have a reason to.
+ */
 export function availabilityToSchedule(a: HallAvailabilityResponse): ScheduleEntry[] {
   return a.occupiedSlots.map((slot, i) => ({
     id: `occ-${i}`,
     startTime: formatDisplayTime(slot.startTime),
     endTime: formatDisplayTime(slot.endTime),
-    roomName: slot.bookedBy,
-    purpose: 'Occupied',
+    roomName: 'Booked',
+    purpose: 'Not available',
     status: 'approved' as BookingStatus,
   }));
 }

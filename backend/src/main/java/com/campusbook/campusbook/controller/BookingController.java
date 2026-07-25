@@ -1,7 +1,10 @@
 package com.campusbook.campusbook.controller;
 
+import com.campusbook.campusbook.dto.BookingAuditResponse;
 import com.campusbook.campusbook.dto.BookingRequest;
 import com.campusbook.campusbook.dto.BookingResponse;
+import com.campusbook.campusbook.dto.BulkActionResponse;
+import com.campusbook.campusbook.dto.BulkBookingRequest;
 import com.campusbook.campusbook.dto.RecurringBookingRequest;
 import com.campusbook.campusbook.dto.RecurringBookingResponse;
 import com.campusbook.campusbook.dto.RejectBookingRequest;
@@ -11,8 +14,11 @@ import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.service.BookingService;
+import com.campusbook.campusbook.service.CalendarService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,6 +32,9 @@ public class BookingController {
 
     @Autowired
     private BookingService bookingService;
+
+    @Autowired
+    private CalendarService calendarService;
 
     @PostMapping
     public ResponseEntity<?> createBooking(@AuthenticationPrincipal User user,
@@ -64,8 +73,8 @@ public class BookingController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public ResponseEntity<List<BookingResponse>> getAllBookings() {
-        List<BookingResponse> bookings = bookingService.getAllBookings().stream()
+    public ResponseEntity<List<BookingResponse>> getAllBookings(@AuthenticationPrincipal User user) {
+        List<BookingResponse> bookings = bookingService.getAllBookings(user).stream()
                 .map(BookingResponse::from)
                 .toList();
         return ResponseEntity.ok(bookings);
@@ -73,8 +82,8 @@ public class BookingController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/pending")
-    public ResponseEntity<List<BookingResponse>> getPendingBookings() {
-        List<BookingResponse> bookings = bookingService.getBookingsByStatus(BookingStatus.PENDING).stream()
+    public ResponseEntity<List<BookingResponse>> getPendingBookings(@AuthenticationPrincipal User user) {
+        List<BookingResponse> bookings = bookingService.getBookingsByStatus(user, BookingStatus.PENDING).stream()
                 .map(BookingResponse::from)
                 .toList();
         return ResponseEntity.ok(bookings);
@@ -94,6 +103,76 @@ public class BookingController {
                                             @RequestBody(required = false) RejectBookingRequest request) {
         String reason = request == null ? null : request.getReason();
         return ResponseEntity.ok(BookingResponse.from(bookingService.rejectBooking(id, user, reason)));
+    }
+
+    /**
+     * Approved and pending bookings competing with this request for its room and
+     * window, so the admin can see the clash before deciding rather than after
+     * an approval bounces.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}/conflicts")
+    public ResponseEntity<List<BookingResponse>> getConflicts(@AuthenticationPrincipal User user,
+                                                              @PathVariable Long id) {
+        List<BookingResponse> conflicts = bookingService.getConflictsFor(id, user).stream()
+                .map(BookingResponse::from)
+                .toList();
+        return ResponseEntity.ok(conflicts);
+    }
+
+    /**
+     * Approve several pending requests at once. Returns each id's outcome —
+     * some may fail (e.g. the slot was taken) while others succeed.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/bulk-approve")
+    public ResponseEntity<BulkActionResponse> bulkApprove(@AuthenticationPrincipal User user,
+                                                          @Valid @RequestBody BulkBookingRequest request) {
+        return ResponseEntity.ok(BulkActionResponse.from(
+                bookingService.approveAll(request.getIds(), user)));
+    }
+
+    /** Reject several pending requests at once with a shared reason. */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/bulk-reject")
+    public ResponseEntity<BulkActionResponse> bulkReject(@AuthenticationPrincipal User user,
+                                                         @Valid @RequestBody BulkBookingRequest request) {
+        return ResponseEntity.ok(BulkActionResponse.from(
+                bookingService.rejectAll(request.getIds(), user, request.getReason())));
+    }
+
+    /** One booking as an .ics file, for importing into a calendar app. */
+    @GetMapping(value = "/{id}/calendar.ics", produces = "text/calendar")
+    public ResponseEntity<String> bookingCalendar(@AuthenticationPrincipal User user,
+                                                  @PathVariable Long id) {
+        String ics = calendarService.toIcs(bookingService.getBookingFor(id, user));
+        return icsResponse(ics, "campusbook-booking-" + id + ".ics");
+    }
+
+    /** The caller's approved bookings as a single .ics feed. */
+    @GetMapping(value = "/my/calendar.ics", produces = "text/calendar")
+    public ResponseEntity<String> myCalendar(@AuthenticationPrincipal User user) {
+        // Only approved bookings: a pending request isn't a commitment yet, and a
+        // rejected/cancelled one shouldn't sit in someone's calendar at all.
+        String ics = calendarService.toIcs(bookingService.getApprovedBookingsByUser(user.getId()));
+        return icsResponse(ics, "campusbook-my-bookings.ics");
+    }
+
+    private ResponseEntity<String> icsResponse(String ics, String filename) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(new MediaType("text", "calendar"))
+                .body(ics);
+    }
+
+    /** A booking's audit trail. Visible to the booker and to admins at its institution. */
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<BookingAuditResponse>> getHistory(@AuthenticationPrincipal User user,
+                                                                 @PathVariable Long id) {
+        List<BookingAuditResponse> history = bookingService.getHistoryFor(id, user).stream()
+                .map(BookingAuditResponse::from)
+                .toList();
+        return ResponseEntity.ok(history);
     }
 
     @PostMapping("/{id}/cancel")

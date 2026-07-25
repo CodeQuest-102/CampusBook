@@ -3,17 +3,18 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Screen, TopBar, Avatar, TextField, Button } from '../../components';
+import { Screen, TopBar, Avatar, TextField, Button, KeyboardAvoider } from '../../components';
 import { colors, spacing, typography } from '../../theme';
 import { usersApi, ApiError } from '../../api';
 import { useApp } from '../../navigation/AppContext';
+import { campusIdLabel } from '../../validation';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function EditProfileScreen() {
   const navigation = useNavigation<Nav>();
-  const { profile, updateProfile } = useApp();
+  const { profile, updateProfile, role } = useApp();
 
   const [name, setName] = useState(profile.name);
   const [email] = useState(profile.email);
@@ -38,7 +39,7 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <>
+    <KeyboardAvoider>
       <TopBar variant="title" title="Edit Profile" onBack={() => navigation.goBack()} />
       <Screen scroll>
         <View style={styles.header}>
@@ -69,6 +70,14 @@ export default function EditProfileScreen() {
           autoCapitalize="none"
         />
         <TextField
+          // Institutional identity and a login handle — displayed, never edited.
+          label={campusIdLabel(role)}
+          value={profile.staffOrStudentId}
+          editable={false}
+          icon="id-card-outline"
+          placeholder="—"
+        />
+        <TextField
           label="Department"
           value={department}
           onChangeText={setDepartment}
@@ -80,7 +89,7 @@ export default function EditProfileScreen() {
       <View style={styles.footer}>
         <Button title="Save Changes" onPress={save} disabled={!dirty} loading={saving} />
       </View>
-    </>
+    </KeyboardAvoider>
   );
 }
 

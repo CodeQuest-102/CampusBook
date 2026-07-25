@@ -20,6 +20,8 @@ export interface Profile {
   name: string;
   email: string;
   department: string;
+  /** KNUST staff/student ID — read-only identity, also usable as a login handle. */
+  staffOrStudentId: string;
 }
 
 export interface SignUpInput {
@@ -57,7 +59,7 @@ interface PersistedSession {
   profile: Profile;
 }
 
-const EMPTY_PROFILE: Profile = { name: '', email: '', department: '' };
+const EMPTY_PROFILE: Profile = { name: '', email: '', department: '', staffOrStudentId: '' };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<Role>('student');
@@ -73,12 +75,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (
       auth: { token: string; fullName: string; email: string; role: string },
       department: string,
+      staffOrStudentId: string,
     ) => {
       const nextRole = roleFromBackend(auth.role as any);
       const nextProfile: Profile = {
         name: auth.fullName,
         email: auth.email,
         department,
+        staffOrStudentId,
       };
       await saveToken(auth.token);
       await persistSession({ role: nextRole, profile: nextProfile });
@@ -94,14 +98,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const auth = await authApi.login({ emailOrId, password });
       // Persist the token first so the follow-up /me call is authenticated.
       await saveToken(auth.token);
-      // The login response omits department; fetch the full profile to fill it.
+      // The login response omits department and the campus ID; one /me call
+      // fills in both.
       let department = '';
+      let staffOrStudentId = '';
       try {
-        department = (await usersApi.getMe()).department ?? '';
+        const me = await usersApi.getMe();
+        department = me.department ?? '';
+        staffOrStudentId = me.staffOrStudentId ?? '';
       } catch {
         // non-fatal — profile just shows an empty department until next edit
       }
-      await applyAuth(auth, department);
+      await applyAuth(auth, department, staffOrStudentId);
     },
     [applyAuth],
   );
@@ -116,7 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         role: roleToBackend(input.role),
         department: input.department,
       });
-      await applyAuth(auth, input.department ?? '');
+      await applyAuth(auth, input.department ?? '', input.staffOrStudentId);
     },
     [applyAuth],
   );
@@ -149,7 +157,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (token && raw) {
           const session: PersistedSession = JSON.parse(raw);
           setRole(session.role);
-          setProfile(session.profile);
+          // Sessions persisted before the campus ID was stored lack the field.
+          setProfile({ ...EMPTY_PROFILE, ...session.profile });
           setIsAuthenticated(true);
         }
       } catch {

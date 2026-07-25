@@ -8,6 +8,7 @@ export { default as BottomNav } from './BottomNav';
 export { default as Card } from './Card';
 export { default as Avatar } from './Avatar';
 export { default as Screen } from './Screen';
+export { default as KeyboardAvoider } from './KeyboardAvoider';
 export { SectionHeader, SearchBar, StatTile, QuickAction, DetailRow, Chip, cardStyle } from './ui';
 export {
   CalendarPicker,
@@ -20,3 +21,5 @@ export {
 } from './pickers';
 export { default as SuccessOverlay } from './SuccessOverlay';
 export { default as StateView } from './StateView';
+export { default as BookingHistory } from './BookingHistory';
+export { default as RoomAvailability } from './RoomAvailability';

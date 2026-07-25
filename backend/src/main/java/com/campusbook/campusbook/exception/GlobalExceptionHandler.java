@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -55,13 +56,49 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(HttpStatus.PAYMENT_REQUIRED.value(), e.getMessage()));
     }
 
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(HttpStatus.TOO_MANY_REQUESTS.value(), e.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
-        String combined = e.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+        Stream<String> fieldMessages = e.getBindingResult().getFieldErrors().stream()
+                .map(fe -> describe(fe.getField(), fe.getDefaultMessage()));
+        // Class-level constraints land here, not in getFieldErrors() — without
+        // this they'd vanish and the response would carry an empty message.
+        Stream<String> globalMessages = e.getBindingResult().getGlobalErrors().stream()
+                .map(oe -> oe.getDefaultMessage());
+
+        String combined = Stream.concat(fieldMessages, globalMessages)
+                .filter(m -> m != null && !m.isBlank())
                 .collect(Collectors.joining("; "));
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), combined));
+    }
+
+    /**
+     * Our own constraint messages are written as complete sentences, so they read
+     * fine alone — and prefixing them would expose internal property names like
+     * "staffOrStudentIdValid" (the getter behind an @AssertTrue). Bean Validation's
+     * built-in messages are sentence fragments ("must not be blank") that need a
+     * subject, so those get a humanized field name.
+     */
+    private String describe(String field, String message) {
+        if (message == null || message.isBlank()) {
+            return humanize(field) + " is invalid";
+        }
+        if (Character.isUpperCase(message.charAt(0))) {
+            return message;
+        }
+        return humanize(field) + " " + message;
+    }
+
+    /** "fullName" -> "Full name", "staffOrStudentId" -> "Staff or student id". */
+    private String humanize(String field) {
+        String spaced = field.replaceAll("([a-z0-9])([A-Z])", "$1 $2").toLowerCase();
+        return spaced.isEmpty() ? spaced : Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

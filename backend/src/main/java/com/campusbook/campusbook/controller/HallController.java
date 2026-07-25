@@ -1,6 +1,7 @@
 package com.campusbook.campusbook.controller;
 
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.dto.HallActiveRequest;
 import com.campusbook.campusbook.dto.HallRequest;
 import com.campusbook.campusbook.dto.HallResponse;
 import com.campusbook.campusbook.entity.Hall;
@@ -15,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.campusbook.campusbook.dto.HallAvailabilityResponse;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -24,9 +26,28 @@ public class HallController {
     @Autowired
     private HallService hallService;
 
+    /**
+     * Active halls at the caller's institution. All filters are optional; supply
+     * {@code freeFrom} and {@code freeUntil} together to keep only rooms with no
+     * approved booking overlapping that window.
+     */
     @GetMapping
-    public ResponseEntity<List<HallResponse>> listActiveHalls() {
-        List<HallResponse> halls = hallService.getAllActiveHalls().stream()
+    public ResponseEntity<List<HallResponse>> listActiveHalls(
+            @AuthenticationPrincipal User user,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer minCapacity,
+            @RequestParam(required = false) Boolean projector,
+            @RequestParam(required = false) Boolean ac,
+            @RequestParam(required = false) Boolean microphone,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime freeFrom,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime freeUntil) {
+
+        HallService.HallFilters filters = new HallService.HallFilters(
+                q, minCapacity, projector, ac, microphone, freeFrom, freeUntil);
+
+        List<HallResponse> halls = hallService.searchHalls(user, filters).stream()
                 .map(HallResponse::from)
                 .toList();
         return ResponseEntity.ok(halls);
@@ -34,16 +55,17 @@ public class HallController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin")
-    public ResponseEntity<List<HallResponse>> listAllHalls() {
-        List<HallResponse> halls = hallService.getAllHalls().stream()
+    public ResponseEntity<List<HallResponse>> listAllHalls(@AuthenticationPrincipal User user) {
+        List<HallResponse> halls = hallService.getAllHalls(user).stream()
                 .map(HallResponse::from)
                 .toList();
         return ResponseEntity.ok(halls);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<HallResponse> getHall(@PathVariable Long id) {
-        return ResponseEntity.ok(HallResponse.from(hallService.getHallById(id)));
+    public ResponseEntity<HallResponse> getHall(@AuthenticationPrincipal User user,
+                                                @PathVariable Long id) {
+        return ResponseEntity.ok(HallResponse.from(hallService.getHallForUser(id, user)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -56,16 +78,33 @@ public class HallController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<HallResponse> updateHall(@PathVariable Long id,
+    public ResponseEntity<HallResponse> updateHall(@AuthenticationPrincipal User user,
+                                                    @PathVariable Long id,
                                                     @Valid @RequestBody HallRequest request) {
         Hall hall = toHall(request);
-        return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall)));
+        return ResponseEntity.ok(HallResponse.from(hallService.updateHall(id, hall, user)));
     }
 
+    /** Put a room into maintenance, or bring it back. */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<HallResponse> setHallActive(@AuthenticationPrincipal User user,
+                                                       @PathVariable Long id,
+                                                       @Valid @RequestBody HallActiveRequest request) {
+        return ResponseEntity.ok(HallResponse.from(
+                hallService.setHallActive(id, request.isActive(), user)));
+    }
+
+    /**
+     * Remove a room outright. Rooms that have been booked can't be deleted —
+     * set those to maintenance with {@code PATCH /{id}/active} instead.
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<HallResponse> disableHall(@PathVariable Long id) {
-        return ResponseEntity.ok(HallResponse.from(hallService.disableHall(id)));
+    public ResponseEntity<Void> deleteHall(@AuthenticationPrincipal User user,
+                                            @PathVariable Long id) {
+        hallService.deleteHall(id, user);
+        return ResponseEntity.noContent().build();
     }
 
     private Hall toHall(HallRequest request) {
@@ -83,8 +122,9 @@ public class HallController {
 
     @GetMapping("/{id}/availability")
     public ResponseEntity<HallAvailabilityResponse> getHallAvailability(
+            @AuthenticationPrincipal User user,
             @PathVariable Long id,
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ResponseEntity.ok(hallService.getAvailability(id, date));
+        return ResponseEntity.ok(hallService.getAvailability(id, date, user));
     }
 }

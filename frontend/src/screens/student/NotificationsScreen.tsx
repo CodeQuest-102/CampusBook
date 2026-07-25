@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Screen, TopBar, StateView } from '../../components';
+import { TopBar, StateView } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
 import { notificationsApi, notificationToUi } from '../../api';
-import { useApiData } from '../../hooks/useApiData';
+import { useApiList } from '../../hooks/useApiList';
 import type { AppNotification, NotificationType } from '../../data/placeholder';
 
 const ICONS: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> =
@@ -17,18 +18,23 @@ const ICONS: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; co
   };
 
 export default function NotificationsScreen() {
-  const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
-    (await notificationsApi.listNotifications()).map(notificationToUi),
+  const {
+    items,
+    loading,
+    refreshing,
+    loadingMore,
+    error,
+    reload,
+    refresh,
+    loadMore,
+    patchItems,
+  } = useApiList(
+    (page) => notificationsApi.listNotifications(page),
+    notificationToUi,
   );
 
-  // Local copy so read-state updates feel instant.
-  const [items, setItems] = useState<AppNotification[]>([]);
-  useEffect(() => {
-    if (data) setItems(data);
-  }, [data]);
-
   const markAllRead = async () => {
-    setItems((cur) => cur.map((n) => ({ ...n, read: true })));
+    patchItems((cur) => cur.map((n) => ({ ...n, read: true })));
     try {
       await notificationsApi.markAllAsRead();
     } catch {
@@ -37,7 +43,7 @@ export default function NotificationsScreen() {
   };
 
   const markRead = async (id: string) => {
-    setItems((cur) => cur.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    patchItems((cur) => cur.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
       await notificationsApi.markAsRead(id);
     } catch {
@@ -45,60 +51,71 @@ export default function NotificationsScreen() {
     }
   };
 
+  const renderItem = ({ item: n }: { item: AppNotification }) => {
+    const meta = ICONS[n.type];
+    return (
+      <TouchableOpacity style={styles.item} activeOpacity={0.7} onPress={() => markRead(n.id)}>
+        <View style={[styles.icon, { backgroundColor: meta.bg }]}>
+          <Ionicons name={meta.icon} size={20} color={meta.color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>{n.title}</Text>
+            <Text style={styles.time}>{n.time}</Text>
+          </View>
+          <Text style={styles.body}>{n.body}</Text>
+        </View>
+        {!n.read && <View style={styles.unreadDot} />}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <>
       <TopBar variant="title" title="Notifications" />
-      <Screen
-        scroll
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
-        }
-      >
-        <TouchableOpacity style={styles.markAll} hitSlop={8} onPress={markAllRead}>
-          <Text style={styles.markAllText}>Mark all as read</Text>
-        </TouchableOpacity>
-
-        <StateView
-          loading={loading}
-          error={error}
-          onRetry={reload}
-          empty={!loading && !error && items.length === 0}
-          emptyText="No notifications yet."
-          emptyIcon="notifications-outline"
-        />
-
-        {!loading &&
-          !error &&
-          items.map((n) => {
-            const meta = ICONS[n.type];
-            return (
-              <TouchableOpacity
-                key={n.id}
-                style={styles.item}
-                activeOpacity={0.7}
-                onPress={() => markRead(n.id)}
-              >
-                <View style={[styles.icon, { backgroundColor: meta.bg }]}>
-                  <Ionicons name={meta.icon} size={20} color={meta.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.titleRow}>
-                    <Text style={styles.title}>{n.title}</Text>
-                    <Text style={styles.time}>{n.time}</Text>
-                  </View>
-                  <Text style={styles.body}>{n.body}</Text>
-                </View>
-                {!n.read && <View style={styles.unreadDot} />}
+      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <FlatList
+          data={loading || error ? [] : items}
+          keyExtractor={(n) => n.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+          }
+          onEndReachedThreshold={0.4}
+          onEndReached={loadMore}
+          ListHeaderComponent={
+            items.length > 0 ? (
+              <TouchableOpacity style={styles.markAll} hitSlop={8} onPress={markAllRead}>
+                <Text style={styles.markAllText}>Mark all as read</Text>
               </TouchableOpacity>
-            );
-          })}
-      </Screen>
+            ) : null
+          }
+          ListEmptyComponent={
+            <StateView
+              loading={loading}
+              error={error}
+              onRetry={reload}
+              empty={!loading && !error && items.length === 0}
+              emptyText="No notifications yet."
+              emptyIcon="notifications-outline"
+            />
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <ActivityIndicator style={{ marginVertical: spacing.lg }} color={colors.primary} />
+            ) : null
+          }
+        />
+      </SafeAreaView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  markAll: { alignSelf: 'flex-end', marginBottom: spacing.sm },
+  safe: { flex: 1, backgroundColor: colors.background },
+  list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl, flexGrow: 1 },
+  markAll: { alignSelf: 'flex-end', marginVertical: spacing.sm },
   markAllText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
   item: {
     flexDirection: 'row',

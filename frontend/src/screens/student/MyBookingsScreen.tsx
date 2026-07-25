@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, TopBar, BookingCard, StateView } from '../../components';
 import { colors, fontWeight, radius, spacing } from '../../theme';
-import { bookingsApi, bookingToUi } from '../../api';
+import { bookingsApi, bookingToUi, ApiError } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -14,6 +16,7 @@ const TABS = ['All', 'Approved', 'Pending', 'Rejected'] as const;
 export default function MyBookingsScreen() {
   const navigation = useNavigation<Nav>();
   const [tab, setTab] = useState<(typeof TABS)[number]>('All');
+  const [exporting, setExporting] = useState(false);
 
   const { data, loading, refreshing, error, reload, refresh } = useApiData(async () =>
     (await bookingsApi.myBookings()).map(bookingToUi),
@@ -23,6 +26,26 @@ export default function MyBookingsScreen() {
   const filtered = bookings.filter((b) =>
     tab === 'All' ? true : b.status === tab.toLowerCase(),
   );
+
+  /** Export approved bookings as one .ics feed and hand it to the share sheet. */
+  const exportCalendar = async () => {
+    setExporting(true);
+    try {
+      const uri = await bookingsApi.downloadMyBookingsIcs();
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'text/calendar',
+          dialogTitle: 'Export my bookings',
+        });
+      } else {
+        Alert.alert('Saved', `Calendar file saved to:\n${uri}`);
+      }
+    } catch (e) {
+      Alert.alert('Export failed', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -48,6 +71,21 @@ export default function MyBookingsScreen() {
             );
           })}
         </View>
+
+        {bookings.some((b) => b.status === 'approved') && (
+          <TouchableOpacity
+            style={styles.exportRow}
+            onPress={exportCalendar}
+            disabled={exporting}
+            activeOpacity={0.7}
+            hitSlop={8}
+          >
+            <Ionicons name="calendar-number-outline" size={16} color={colors.primary} />
+            <Text style={styles.exportText}>
+              {exporting ? 'Preparing…' : 'Export approved bookings to calendar'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <StateView
           loading={loading}
@@ -88,4 +126,12 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   tabText: { color: colors.textSecondary, fontWeight: fontWeight.medium, fontSize: 12 },
   tabTextActive: { color: colors.white },
+  exportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  exportText: { color: colors.primary, fontWeight: fontWeight.semibold, fontSize: 13 },
 });

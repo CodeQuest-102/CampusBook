@@ -1,4 +1,5 @@
 package com.campusbook.campusbook.service;
+import com.campusbook.campusbook.dto.AdminCreateUserRequest;
 import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.repository.UserRepository;
@@ -20,12 +21,7 @@ public class UserService {
     private InstitutionRepository institutionRepository;
 
     public User registerUser(User user) {
-        if (userRepository.existsByEmail(user.getEmail())) {
-            throw new DuplicateUserException("Email already registered");
-        }
-        if (userRepository.existsByStaffOrStudentId(user.getStaffOrStudentId())) {
-            throw new DuplicateUserException("Staff/Student ID already registered");
-        }
+        assertNotAlreadyRegistered(user.getEmail(), user.getStaffOrStudentId());
 
         Institution institution = institutionRepository.findFirstByOrderByIdAsc()
                 .orElseThrow(() -> new IllegalStateException("No institution configured"));
@@ -35,14 +31,50 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * Provision an account on behalf of an admin. The institution comes from the
+     * acting admin rather than {@code findFirstByOrderByIdAsc} — an admin can
+     * only ever create colleagues at their own campus, which is what keeps the
+     * multi-campus isolation intact on the write side too.
+     */
+    public User createByAdmin(AdminCreateUserRequest request, User admin) {
+        assertNotAlreadyRegistered(request.getEmail(), request.getStaffOrStudentId());
+
+        User user = new User();
+        user.setFullName(request.getFullName().trim());
+        user.setEmail(request.getEmail().trim());
+        user.setStaffOrStudentId(request.getStaffOrStudentId().trim());
+        user.setRole(request.getRole());
+        user.setDepartment(request.getDepartment() == null ? null : request.getDepartment().trim());
+        user.setInstitution(admin.getInstitution());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        return userRepository.save(user);
+    }
+
+    /** Email and campus ID are both unique across the whole system, not per campus. */
+    private void assertNotAlreadyRegistered(String email, String staffOrStudentId) {
+        if (userRepository.existsByEmail(email)) {
+            throw new DuplicateUserException("Email already registered");
+        }
+        if (userRepository.existsByStaffOrStudentId(staffOrStudentId)) {
+            throw new DuplicateUserException("Staff/Student ID already registered");
+        }
+    }
+
     public User findByEmailOrStaffId(String emailOrId) {
         return userRepository.findByEmail(emailOrId)
                 .or(() -> userRepository.findByStaffOrStudentId(emailOrId))
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
     }
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    /**
+     * The user directory for one campus. Scoped like every other read in the
+     * app — an admin at one institution has no business seeing another's staff
+     * and students.
+     */
+    public List<User> getUsersForInstitution(Long institutionId) {
+        return userRepository.findByInstitutionId(institutionId);
     }
 
     public User updateProfile(Long userId, com.campusbook.campusbook.dto.UpdateProfileRequest patch) {
@@ -55,19 +87,5 @@ public class UserService {
             user.setDepartment(patch.getDepartment().trim());
         }
         return userRepository.save(user);
-    }
-
-    /**
-     * Simplified self-service reset: verifies the account and that the supplied
-     * staff/student ID matches, then sets a new password. A production flow would
-     * instead email a one-time token.
-     */
-    public void resetPassword(String emailOrId, String staffOrStudentId, String newPassword) {
-        User user = findByEmailOrStaffId(emailOrId);
-        if (!user.getStaffOrStudentId().equalsIgnoreCase(staffOrStudentId.trim())) {
-            throw new InvalidCredentialsException("Account details do not match");
-        }
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
     }
 }

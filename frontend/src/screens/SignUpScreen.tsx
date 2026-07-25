@@ -2,10 +2,21 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Screen, TextField, Button, TopBar } from '../components';
+import { Screen, TextField, Button, TopBar, KeyboardAvoider } from '../components';
 import { colors, fontWeight, radius, spacing, typography } from '../theme';
 import { useApp } from '../navigation/AppContext';
 import { ApiError } from '../api';
+import {
+  CAMPUS_ID_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  campusIdLabel,
+  digitsOnly,
+  validateCampusId,
+  validateFullName,
+  validateKnustEmail,
+  validatePassword,
+  validatePasswordMatch,
+} from '../validation';
 import type { Role } from '../data/placeholder';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -29,15 +40,43 @@ export default function SignUpScreen({ navigation }: Props) {
   const [confirm, setConfirm] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  // `error` is for API failures only; every field problem shows on its own field.
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [idError, setIdError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  const idLength = CAMPUS_ID_LENGTH[role];
+
+  // Student and staff IDs differ in length, so an ID typed under one role can
+  // be too long for the other. Re-truncate rather than leave it over the cap.
+  const onRoleChange = (next: Role) => {
+    setRole(next);
+    setStaffOrStudentId((id) => id.slice(0, CAMPUS_ID_LENGTH[next]));
+    setIdError(null);
+  };
 
   const onSubmit = async () => {
-    if (!fullName.trim() || !email.trim() || !staffOrStudentId.trim() || !password) {
-      setError('Please fill in all required fields.');
-      return;
-    }
-    if (password !== confirm) {
-      setError('Passwords do not match.');
+    // Collect every field problem in one pass so the user fixes them together
+    // rather than discovering them one submit at a time. Full name goes through
+    // the same path as the rest — it used to bail out early with a generic
+    // "fill in all required fields", which named no field to go and fix.
+    const problems = {
+      name: validateFullName(fullName),
+      email: validateKnustEmail(email),
+      id: validateCampusId(role, staffOrStudentId),
+      password: validatePassword(password),
+      confirm: validatePasswordMatch(password, confirm),
+    };
+    setNameError(problems.name);
+    setEmailError(problems.email);
+    setIdError(problems.id);
+    setPasswordError(problems.password);
+    setConfirmError(problems.confirm);
+    if (Object.values(problems).some(Boolean)) {
+      setError(null);
       return;
     }
     setError(null);
@@ -60,7 +99,7 @@ export default function SignUpScreen({ navigation }: Props) {
   };
 
   return (
-    <>
+    <KeyboardAvoider>
       <TopBar variant="title" title="Create Account" onBack={() => navigation.goBack()} />
       <Screen scroll>
         <Text style={styles.subtitle}>Join CampusBook to get started</Text>
@@ -69,8 +108,12 @@ export default function SignUpScreen({ navigation }: Props) {
           label="Full Name"
           icon="person-outline"
           placeholder="Abubakar Sadiq"
+          error={nameError}
           value={fullName}
-          onChangeText={setFullName}
+          onChangeText={(t) => {
+            setFullName(t);
+            if (nameError) setNameError(null);
+          }}
         />
         <TextField
           label="Email Address"
@@ -79,8 +122,13 @@ export default function SignUpScreen({ navigation }: Props) {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          helper="Use your KNUST address"
+          error={emailError}
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => {
+            setEmail(t);
+            if (emailError) setEmailError(null);
+          }}
         />
 
         <Text style={styles.groupLabel}>I am a</Text>
@@ -91,7 +139,7 @@ export default function SignUpScreen({ navigation }: Props) {
               <TouchableOpacity
                 key={r.key}
                 style={[styles.roleChip, active && styles.roleChipActive]}
-                onPress={() => setRole(r.key)}
+                onPress={() => onRoleChange(r.key)}
                 activeOpacity={0.85}
               >
                 <Text style={[styles.roleText, active && styles.roleTextActive]}>{r.label}</Text>
@@ -101,12 +149,18 @@ export default function SignUpScreen({ navigation }: Props) {
         </View>
 
         <TextField
-          label={role === 'staff' ? 'Staff ID' : 'Student ID'}
+          label={campusIdLabel(role)}
           icon="id-card-outline"
-          placeholder={role === 'staff' ? 'e.g. STF12345' : 'e.g. 20551234'}
-          autoCapitalize="characters"
+          placeholder={role === 'staff' ? 'e.g. 200912345' : 'e.g. 20551234'}
+          keyboardType="number-pad"
+          maxLength={idLength}
+          helper={`Exactly ${idLength} digits`}
+          error={idError}
           value={staffOrStudentId}
-          onChangeText={setStaffOrStudentId}
+          onChangeText={(t) => {
+            setStaffOrStudentId(digitsOnly(t));
+            if (idError) setIdError(null);
+          }}
         />
         <TextField
           label="Department"
@@ -120,16 +174,25 @@ export default function SignUpScreen({ navigation }: Props) {
           icon="lock-closed-outline"
           placeholder="••••••••"
           secure
+          helper={`At least ${PASSWORD_MIN_LENGTH} characters`}
+          error={passwordError}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(t) => {
+            setPassword(t);
+            if (passwordError) setPasswordError(null);
+          }}
         />
         <TextField
           label="Confirm Password"
           icon="lock-closed-outline"
           placeholder="••••••••"
           secure
+          error={confirmError}
           value={confirm}
-          onChangeText={setConfirm}
+          onChangeText={(t) => {
+            setConfirm(t);
+            if (confirmError) setConfirmError(null);
+          }}
         />
 
         <TouchableOpacity
@@ -163,7 +226,7 @@ export default function SignUpScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </Screen>
-    </>
+    </KeyboardAvoider>
   );
 }
 
