@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { apiFetch, loadToken, ApiError } from './client';
 import { API_BASE_URL } from '../config';
 import type { ReportsResponse, ReportsOverview } from './types';

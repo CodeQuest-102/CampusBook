@@ -1,22 +1,46 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+
+const PORT = 8080;
 
 /**
- * Base URL of the Spring Boot backend.
+ * Base URL of the Spring Boot backend, resolved so the *same* build works on the
+ * iOS simulator, the Android emulator, and a physical phone — all at once, with
+ * nothing to edit between them:
  *
- * - iOS simulator shares the Mac's network, so `localhost` reaches the backend
- *   directly and iOS ATS permits cleartext to localhost.
- * - Android emulator maps the host machine to the special address `10.0.2.2`.
- * - For a physical device (Expo Go), replace this with your Mac's LAN IP,
- *   e.g. `http://192.168.1.20:8080`, and make sure the phone is on the same
- *   Wi-Fi network.
+ * 1. `EXPO_PUBLIC_API_URL` always wins — set it to a LAN IP or a hosted/staging
+ *    URL to override everything below. Expo inlines it at bundle time, so restart
+ *    Metro (`npx expo start -c`) after changing it.
+ * 2. Simulator / emulator (`Device.isDevice === false`): the backend is on this
+ *    same machine, reached via `localhost` on iOS and the special alias
+ *    `10.0.2.2` on Android. `localhost` is also the one host iOS ATS lets us hit
+ *    over plain HTTP without extra config.
+ * 3. Physical phone: `localhost` would mean the phone itself, so we talk to the
+ *    computer that served the JS bundle — its LAN IP, which Expo exposes as the
+ *    host part of `hostUri` (e.g. "192.168.1.20:8081"). Phone and computer must
+ *    be on the same Wi-Fi.
  */
-const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+function resolveBaseUrl(): string {
+  const override = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (override) return override;
 
-/**
- * Override for physical devices / deployed backends by setting
- * `EXPO_PUBLIC_API_URL` (e.g. in a `.env` file or the shell) to your Mac's LAN
- * IP or the hosted URL, e.g. `EXPO_PUBLIC_API_URL=http://192.168.1.20:8080`.
- * Expo inlines `EXPO_PUBLIC_*` vars at build time.
- */
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? `http://${HOST}:8080`;
+  // Simulator / emulator — the backend is on this same machine.
+  if (!Device.isDevice) {
+    const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+    return `http://${host}:${PORT}`;
+  }
+
+  // Physical device — reach the computer that is serving the bundle over the LAN.
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    // Fallback across Expo runtimes where hostUri isn't on expoConfig.
+    (Constants as unknown as { expoGoConfig?: { debuggerHost?: string } }).expoGoConfig?.debuggerHost;
+  const lanHost = hostUri?.split(':')[0];
+  if (lanHost) return `http://${lanHost}:${PORT}`;
+
+  // Last resort (e.g. a standalone build with no dev host and no override set).
+  return `http://localhost:${PORT}`;
+}
+
+export const API_BASE_URL = resolveBaseUrl();
