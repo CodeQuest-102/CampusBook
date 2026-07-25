@@ -3,12 +3,13 @@ package com.campusbook.campusbook.dto;
 import java.util.List;
 
 /**
- * Aggregated analytics for the admin Reports screen and dashboard overview.
- * {@code overview} is global (all-time); the remaining figures are scoped to the
- * requested period (week / month / year).
+ * Aggregated analytics for the admin Reports screen. All figures are scoped to the
+ * requested period (week / month / year) and count approved bookings only.
+ *
+ * <p>The nested {@link Overview} (global, all-time counts) is served separately by
+ * the plan-independent {@code /api/reports/overview} endpoint for the dashboard.
  */
 public record ReportsResponse(
-        Overview overview,
         LabelledCount mostBookedRoom,
         LabelledCount peakDay,
         int utilizationRate,

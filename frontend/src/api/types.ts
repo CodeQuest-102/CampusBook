@@ -231,7 +231,6 @@ export interface ReportsOverview {
 }
 
 export interface ReportsResponse {
-  overview: ReportsOverview;
   mostBookedRoom: { name: string; count: number };
   peakDay: { name: string; count: number };
   utilizationRate: number;
