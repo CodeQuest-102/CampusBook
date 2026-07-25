@@ -10,9 +10,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,20 +47,25 @@ public class ReportService {
         LocalDateTime rangeStart = rangeStartFor(period);
         long rangeDays = Math.max(1, ChronoUnit.DAYS.between(rangeStart.toLocalDate(), now.toLocalDate()) + 1);
 
-        // Non-cancelled bookings at this institution that start within the period.
-        List<Booking> bookings = bookingRepository
-                .findByHallInstitutionIdAndStartTimeBetween(institutionId, rangeStart, now).stream()
-                .filter(b -> b.getStatus() != BookingStatus.CANCELLED)
-                .toList();
-
-        ReportsResponse.Overview overview = buildOverview(institutionId);
+        // Every metric on the dashboard reflects confirmed room usage, so they all
+        // draw from the same set: approved bookings that start within the period.
+        List<Booking> bookings = approvedBookingsInPeriod(institutionId, rangeStart, now);
 
         ReportsResponse.LabelledCount mostBookedRoom = mostBookedRoom(bookings);
         ReportsResponse.LabelledCount peakDay = peakDay(bookings);
         int utilizationRate = utilizationRate(institutionId, bookings, rangeDays);
-        List<ReportsResponse.SeriesPoint> bookingsOverTime = bookingsByWeekday(bookings);
+        List<ReportsResponse.SeriesPoint> bookingsOverTime =
+                bookingsOverTime(period, bookings, rangeStart, now);
 
-        return new ReportsResponse(overview, mostBookedRoom, peakDay, utilizationRate, bookingsOverTime);
+        return new ReportsResponse(mostBookedRoom, peakDay, utilizationRate, bookingsOverTime);
+    }
+
+    /** Approved bookings at this institution that start within the period — the basis for all reporting. */
+    private List<Booking> approvedBookingsInPeriod(Long institutionId, LocalDateTime rangeStart, LocalDateTime now) {
+        return bookingRepository
+                .findByHallInstitutionIdAndStartTimeBetween(institutionId, rangeStart, now).stream()
+                .filter(b -> b.getStatus() == BookingStatus.APPROVED)
+                .toList();
     }
 
     /** Basic system counts for one institution — available to all admins regardless of plan. */
@@ -69,10 +77,12 @@ public class ReportService {
         );
     }
 
-    /** Bookings in the selected period as a CSV document (Campus Pro feature). */
+    /**
+     * Approved bookings in the selected period as a CSV document (Campus Pro feature).
+     * Matches the on-screen summary, which is also approved-only.
+     */
     public String exportBookingsCsv(Long institutionId, String period) {
-        List<Booking> bookings = bookingRepository
-                .findByHallInstitutionIdAndStartTimeBetween(institutionId, rangeStartFor(period), LocalDateTime.now())
+        List<Booking> bookings = approvedBookingsInPeriod(institutionId, rangeStartFor(period), LocalDateTime.now())
                 .stream()
                 .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
                 .toList();
@@ -132,15 +142,15 @@ public class ReportService {
     }
 
     /**
-     * Rough estimate: total approved booked hours over the period as a share of the
+     * Rough estimate: total booked hours over the period as a share of the
      * theoretical capacity (active halls × bookable hours × days). Capped at 100.
+     * The caller passes approved bookings only, so every hour here is confirmed usage.
      */
     private int utilizationRate(Long institutionId, List<Booking> bookings, long rangeDays) {
         long activeHalls = hallRepository.countByInstitutionIdAndActiveTrue(institutionId);
         if (activeHalls == 0) return 0;
 
         double bookedHours = bookings.stream()
-                .filter(b -> b.getStatus() == BookingStatus.APPROVED)
                 .mapToDouble(b -> Duration.between(b.getStartTime(), b.getEndTime()).toMinutes() / 60.0)
                 .sum();
 
@@ -150,17 +160,55 @@ public class ReportService {
         return (int) Math.min(100, Math.round(bookedHours / capacityHours * 100));
     }
 
-    private List<ReportsResponse.SeriesPoint> bookingsByWeekday(List<Booking> bookings) {
-        Map<DayOfWeek, Long> byDay = bookings.stream()
-                .collect(Collectors.groupingBy(b -> b.getStartTime().getDayOfWeek(), Collectors.counting()));
+    /** Shapes the trend chart to match the selected period: daily for a week, weekly for a month, monthly for a year. */
+    private List<ReportsResponse.SeriesPoint> bookingsOverTime(
+            String period, List<Booking> bookings, LocalDateTime rangeStart, LocalDateTime now) {
+        return switch (period == null ? "month" : period.toLowerCase()) {
+            case "week" -> bookingsByDay(bookings, now.toLocalDate().minusDays(6), now.toLocalDate());
+            case "year" -> bookingsByMonth(bookings, YearMonth.from(now).minusMonths(11), YearMonth.from(now));
+            default -> bookingsByWeek(bookings, rangeStart.toLocalDate(), now.toLocalDate());
+        };
+    }
 
-        // Mon → Sun, always present so the chart has a stable shape.
-        return List.of(
-                DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY,
-                DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
-        ).stream()
-                .map(d -> new ReportsResponse.SeriesPoint(
-                        d.getDisplayName(TextStyle.SHORT, Locale.ENGLISH), byDay.getOrDefault(d, 0L)))
-                .toList();
+    private List<ReportsResponse.SeriesPoint> bookingsByDay(List<Booking> bookings, LocalDate start, LocalDate end) {
+        Map<LocalDate, Long> byDate = bookings.stream()
+                .collect(Collectors.groupingBy(b -> b.getStartTime().toLocalDate(), Collectors.counting()));
+
+        List<ReportsResponse.SeriesPoint> points = new ArrayList<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            points.add(new ReportsResponse.SeriesPoint(
+                    d.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH), byDate.getOrDefault(d, 0L)));
+        }
+        return points;
+    }
+
+    private List<ReportsResponse.SeriesPoint> bookingsByWeek(List<Booking> bookings, LocalDate start, LocalDate end) {
+        long totalDays = ChronoUnit.DAYS.between(start, end) + 1;
+        int weekCount = (int) Math.max(1, Math.ceil(totalDays / 7.0));
+        long[] counts = new long[weekCount];
+
+        for (Booking b : bookings) {
+            long dayOffset = ChronoUnit.DAYS.between(start, b.getStartTime().toLocalDate());
+            int idx = (int) Math.min(weekCount - 1, Math.max(0, dayOffset / 7));
+            counts[idx]++;
+        }
+
+        List<ReportsResponse.SeriesPoint> points = new ArrayList<>();
+        for (int i = 0; i < weekCount; i++) {
+            points.add(new ReportsResponse.SeriesPoint("Week " + (i + 1), counts[i]));
+        }
+        return points;
+    }
+
+    private List<ReportsResponse.SeriesPoint> bookingsByMonth(List<Booking> bookings, YearMonth start, YearMonth end) {
+        Map<YearMonth, Long> byMonth = bookings.stream()
+                .collect(Collectors.groupingBy(b -> YearMonth.from(b.getStartTime()), Collectors.counting()));
+
+        List<ReportsResponse.SeriesPoint> points = new ArrayList<>();
+        for (YearMonth m = start; !m.isAfter(end); m = m.plusMonths(1)) {
+            points.add(new ReportsResponse.SeriesPoint(
+                    m.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH), byMonth.getOrDefault(m, 0L)));
+        }
+        return points;
     }
 }

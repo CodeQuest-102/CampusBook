@@ -19,6 +19,7 @@ public class SubscriptionCatalog {
                     SubscriptionTier.FREE,
                     "Free",
                     "GHS 0 / month",
+                    0,      // free — no online payment
                     5,      // up to 5 active rooms
                     20,     // 20 bookings per month
                     false, false, false, false,
@@ -34,6 +35,7 @@ public class SubscriptionCatalog {
                     SubscriptionTier.CAMPUS_PRO,
                     "Campus Pro",
                     "GHS 500 / month",
+                    50000,  // GHS 500 in pesewas
                     null,   // unlimited rooms
                     null,   // unlimited bookings
                     true, true, true, false,
@@ -49,6 +51,7 @@ public class SubscriptionCatalog {
                     SubscriptionTier.ENTERPRISE,
                     "Enterprise",
                     "Custom pricing",
+                    null,   // custom pricing — contact sales, not online
                     null,
                     null,
                     true, true, true, true,

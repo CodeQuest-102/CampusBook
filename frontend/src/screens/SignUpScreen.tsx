@@ -17,7 +17,7 @@ import {
   validatePassword,
   validatePasswordMatch,
 } from '../validation';
-import type { Role } from '../data/placeholder';
+import type { Role } from '../data/types';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;

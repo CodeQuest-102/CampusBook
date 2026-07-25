@@ -6,7 +6,7 @@ import { TopBar, StateView } from '../../components';
 import { colors, radius, spacing, typography } from '../../theme';
 import { notificationsApi, notificationToUi } from '../../api';
 import { useApiList } from '../../hooks/useApiList';
-import type { AppNotification, NotificationType } from '../../data/placeholder';
+import type { AppNotification, NotificationType } from '../../data/types';
 
 const ICONS: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> =
   {

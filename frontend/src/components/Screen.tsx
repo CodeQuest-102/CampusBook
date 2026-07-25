@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import { RefreshControlProps, ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme';
 
@@ -11,7 +11,7 @@ interface Props {
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
   contentStyle?: ViewStyle;
   /** Optional pull-to-refresh control (only used when `scroll` is true). */
-  refreshControl?: React.ReactElement;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 /** Standard white screen surface with safe-area handling + optional scroll. */

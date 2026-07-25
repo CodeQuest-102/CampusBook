@@ -27,11 +27,11 @@ import RoomFormScreen from '../screens/admin/RoomFormScreen';
 import UsersScreen from '../screens/admin/UsersScreen';
 import AddUserScreen from '../screens/admin/AddUserScreen';
 import SubscriptionScreen from '../screens/admin/SubscriptionScreen';
+import PaymentWebViewScreen from '../screens/admin/PaymentWebViewScreen';
 
-// Mock / placeholder destinations
+// Secondary screens reached from Profile / Settings
 import ForgotPasswordScreen from '../screens/misc/ForgotPasswordScreen';
 import MyRequestsScreen from '../screens/misc/MyRequestsScreen';
-import PreferencesScreen from '../screens/misc/PreferencesScreen';
 import SettingsScreen from '../screens/misc/SettingsScreen';
 import HelpSupportScreen from '../screens/misc/HelpSupportScreen';
 
@@ -131,10 +131,10 @@ export default function RootNavigator() {
                 <Stack.Screen name="Users" component={UsersScreen} />
                 <Stack.Screen name="AddUser" component={AddUserScreen} />
                 <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+                <Stack.Screen name="PaymentWebView" component={PaymentWebViewScreen} />
 
-                {/* Mock / placeholder destinations */}
+                {/* Secondary screens reached from Profile / Settings */}
                 <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
-                <Stack.Screen name="Preferences" component={PreferencesScreen} />
                 <Stack.Screen name="Settings" component={SettingsScreen} />
                 <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
               </>

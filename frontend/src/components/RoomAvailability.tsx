@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing, typography } from '../theme';
 import { hallsApi, availabilityToSchedule, toLocalDateString, ApiError } from '../api';
-import type { ScheduleEntry } from '../data/placeholder';
+import type { ScheduleEntry } from '../data/types';
 
 /**
  * When a room is already taken on a given day.

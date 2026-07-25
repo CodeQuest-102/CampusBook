@@ -1,7 +1,7 @@
 /**
  * TypeScript mirrors of the backend DTOs. Field names match the JSON the Spring
  * Boot API returns; adapters in `adapters.ts` translate these into the UI shapes
- * declared in `src/data/placeholder.ts`.
+ * declared in `src/data/types.ts`.
  */
 
 /** Backend role enum. */
@@ -212,6 +212,15 @@ export interface SubscriptionResponse {
   activeHallsUsed: number;
   monthlyBookingsUsed: number;
   features: string[];
+  paymentEnabled: boolean; // true when online (Paystack) checkout is configured
+}
+
+/** The result of starting a Paystack checkout — the hosted URL, our reference, and
+ * the callback URL the checkout WebView watches for to detect completion. */
+export interface CheckoutResponse {
+  authorizationUrl: string;
+  reference: string;
+  callbackUrl: string;
 }
 
 export interface PlanResponse {
@@ -231,7 +240,6 @@ export interface ReportsOverview {
 }
 
 export interface ReportsResponse {
-  overview: ReportsOverview;
   mostBookedRoom: { name: string; count: number };
   peakDay: { name: string; count: number };
   utilizationRate: number;

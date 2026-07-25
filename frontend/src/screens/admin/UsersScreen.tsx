@@ -5,7 +5,7 @@ import { Screen, TopBar, Avatar, StatusPill, SearchBar, StateView } from '../../
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
 import { usersApi, userToDirectory } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
-import type { DirectoryUser } from '../../data/placeholder';
+import type { DirectoryUser } from '../../data/types';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Users'>;

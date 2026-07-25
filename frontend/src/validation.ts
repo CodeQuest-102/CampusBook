@@ -6,7 +6,7 @@
  * and to keep the inputs themselves constrained. The server stays the gate.
  */
 
-import type { Role } from './data/placeholder';
+import type { Role } from './data/types';
 
 /** Digits in a valid campus ID, by role. Admins are provisioned, not self-registered. */
 export const CAMPUS_ID_LENGTH: Record<Role, number> = {

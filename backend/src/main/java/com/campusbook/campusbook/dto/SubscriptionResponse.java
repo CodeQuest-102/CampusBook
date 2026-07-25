@@ -18,6 +18,7 @@ public record SubscriptionResponse(
         Integer monthlyBookingLimit,   // null = unlimited
         long activeHallsUsed,
         long monthlyBookingsUsed,
-        List<String> features
+        List<String> features,
+        boolean paymentEnabled         // true when online (Paystack) checkout is configured
 ) {
 }

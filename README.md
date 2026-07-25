@@ -28,7 +28,11 @@ subscription model (individual users are never charged).
 - **Analytics** — most-booked room, peak day, utilization, bookings-over-time,
   CSV export (Campus Pro)
 - **Subscription** — Free / Campus Pro / Enterprise tiers with enforced limits
-  and a simulated in-app upgrade (admin, institution-scoped)
+  and an in-app upgrade (admin, institution-scoped). The paid Campus Pro upgrade
+  runs through **Paystack** when configured — the backend initializes and
+  **verifies** the transaction with its secret key (the app never holds a key) —
+  and falls back to a simulated payment when Paystack is off. Downgrades (including
+  the "Switch to Free" reset) never touch payment
 
 All data is **scoped to the acting user's institution** — an admin at one campus
 can neither see nor act on another campus's rooms, requests or reports.
@@ -130,9 +134,17 @@ or production environments, set them — see `backend/.env.example` and
 outside local development.**
 
 Backend: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MS`,
-`CORS_ALLOWED_ORIGINS`, `SERVER_PORT`, and for email
-`MAIL_ENABLED`, `MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
+`CORS_ALLOWED_ORIGINS`, `SERVER_PORT`, for email
+`MAIL_ENABLED`, `MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+and for payments `PAYSTACK_ENABLED`, `PAYSTACK_SECRET_KEY`, `PAYSTACK_BASE_URL`,
+`PAYSTACK_CALLBACK_URL`.
 Frontend: `EXPO_PUBLIC_API_URL`.
+
+> **Payments in development:** Paystack is off by default (`PAYSTACK_ENABLED=false`),
+> so the upgrade uses a simulated payment and needs no keys. Set `PAYSTACK_ENABLED=true`
+> and `PAYSTACK_SECRET_KEY` to a Paystack **test** secret key (`sk_test_…`, GHS enabled)
+> to take real test payments — pay with test card `4084 0840 8408 4081`, CVV `408`,
+> any future expiry, PIN `0000`, OTP `123456`. The secret key stays server-side.
 
 ### Production profile
 
@@ -198,7 +210,11 @@ required role returns **403**.
 - `POST /api/users` (admin) — provision an account at the caller's institution;
   unlike public sign-up this may create another `ADMIN`
 - `GET /api/reports/overview`, `/summary`, `/export` (Campus Pro)
-- `GET /api/subscription`, `/plans`, `POST /api/subscription/upgrade` (admin)
+- `GET /api/subscription`, `/plans` (admin); `POST /api/subscription/upgrade`
+  (admin) — direct tier switch, used for downgrades and the simulated upgrade
+- `POST /api/subscription/checkout` — starts a Paystack payment for a paid
+  upgrade; `POST /api/subscription/verify` — verifies the reference server-side,
+  then applies the upgrade (admin)
 
 ## Database migrations
 
