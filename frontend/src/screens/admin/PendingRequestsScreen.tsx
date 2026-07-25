@@ -7,7 +7,7 @@ import { Screen, TopBar, Avatar, Button, StateView } from '../../components';
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
 import { bookingsApi, bookingToRequest, ApiError } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
-import type { BookingRequest } from '../../data/placeholder';
+import type { BookingRequest } from '../../data/types';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;

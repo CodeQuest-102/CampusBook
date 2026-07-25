@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fontSize, radius, shadow, spacing, typography } from '../theme';
 import StatusPill, { roomStatusLabel, roomTone } from './StatusPill';
-import { Room } from '../data/placeholder';
+import { Room } from '../data/types';
 
 interface Props {
   room: Room;

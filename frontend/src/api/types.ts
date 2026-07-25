@@ -1,7 +1,7 @@
 /**
  * TypeScript mirrors of the backend DTOs. Field names match the JSON the Spring
  * Boot API returns; adapters in `adapters.ts` translate these into the UI shapes
- * declared in `src/data/placeholder.ts`.
+ * declared in `src/data/types.ts`.
  */
 
 /** Backend role enum. */

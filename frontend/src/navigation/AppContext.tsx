@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import type { Role } from '../data/placeholder';
+import type { Role } from '../data/types';
 import { authApi, usersApi, roleFromBackend, roleToBackend } from '../api';
 import {
   saveToken,

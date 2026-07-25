@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fontSize, radius, shadow, spacing, typography } from '../theme';
 import StatusPill, { bookingTone } from './StatusPill';
-import { Booking } from '../data/placeholder';
+import { Booking } from '../data/types';
 
 interface Props {
   booking: Booking;

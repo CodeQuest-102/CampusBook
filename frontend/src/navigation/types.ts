@@ -1,5 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
-import type { Room, Booking, BookingRequest, ScheduleEntry } from '../data/placeholder';
+import type { Room, Booking, BookingRequest, ScheduleEntry } from '../data/types';
 
 /** Tabs shared across roles (each role uses a subset — see RootNavigator). */
 export type MainTabParamList = {
@@ -32,10 +32,9 @@ export type RootStackParamList = {
   BookingDetails: { booking: Booking };
   EditProfile: undefined;
 
-  // Auth extras + mock/placeholder destinations so every button leads somewhere
+  // Auth extras + secondary destinations reached from Profile / Settings
   ForgotPassword: undefined;
   MyRequests: undefined;
-  Preferences: undefined;
   Settings: undefined;
   HelpSupport: undefined;
   Users: undefined;

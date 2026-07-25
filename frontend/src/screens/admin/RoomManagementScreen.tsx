@@ -7,7 +7,7 @@ import { roomStatusLabel, roomTone } from '../../components/StatusPill';
 import { colors, radius, shadow, spacing, typography } from '../../theme';
 import { hallsApi, hallToRoom, ApiError } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
-import type { Room } from '../../data/placeholder';
+import type { Room } from '../../data/types';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomManagement'>;

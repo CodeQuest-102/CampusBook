@@ -10,11 +10,10 @@ import type { RootStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-type RowKey = 'bookings' | 'requests' | 'preferences' | 'settings' | 'help';
+type RowKey = 'bookings' | 'requests' | 'settings' | 'help';
 const ROWS: { key: RowKey; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
   { key: 'bookings', icon: 'bookmark-outline', label: 'My Bookings' },
   { key: 'requests', icon: 'file-tray-full-outline', label: 'My Requests' },
-  { key: 'preferences', icon: 'options-outline', label: 'Preferences' },
   { key: 'settings', icon: 'settings-outline', label: 'Settings' },
   { key: 'help', icon: 'help-circle-outline', label: 'Help & Support' },
 ];
@@ -62,8 +61,6 @@ export default function ProfileScreen() {
                     });
                   case 'requests':
                     return navigation.navigate('MyRequests');
-                  case 'preferences':
-                    return navigation.navigate('Preferences');
                   case 'settings':
                     return navigation.navigate('Settings');
                   case 'help':

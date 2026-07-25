@@ -1,6 +1,6 @@
 /**
  * Translation layer between backend DTOs (`types.ts`) and the UI shapes the
- * screens already use (`src/data/placeholder.ts`). Keeping the mapping here means
+ * screens already use (`src/data/types.ts`). Keeping the mapping here means
  * the components don't change shape when data goes live.
  */
 import type {
@@ -13,7 +13,7 @@ import type {
   ScheduleEntry,
   DirectoryUser,
   BookingStatus,
-} from '../data/placeholder';
+} from '../data/types';
 import type {
   HallResponse,
   BookingResponse,

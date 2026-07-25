@@ -8,7 +8,7 @@ import { bookingTone } from '../../components/StatusPill';
 import { colors, fontWeight, radius, shadow, spacing, typography } from '../../theme';
 import { bookingsApi, bookingToSchedule } from '../../api';
 import { useApiData } from '../../hooks/useApiData';
-import type { ScheduleEntry } from '../../data/placeholder';
+import type { ScheduleEntry } from '../../data/types';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
