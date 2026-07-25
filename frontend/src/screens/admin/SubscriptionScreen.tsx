@@ -31,7 +31,41 @@ export default function SubscriptionScreen({ navigation }: Props) {
   const sub = data?.subscription;
   const plans = data?.plans ?? [];
 
+  // Real (test) Paystack payment: ask the backend to start a checkout, then hand
+  // off to the WebView. The tier flips server-side only after verification there.
+  const startPaidUpgrade = async (plan: PlanResponse) => {
+    setBusyTier(plan.tier);
+    try {
+      const co = await subscriptionApi.checkout(plan.tier);
+      navigation.navigate('PaymentWebView', {
+        authorizationUrl: co.authorizationUrl,
+        reference: co.reference,
+        callbackUrl: co.callbackUrl,
+        planName: plan.name,
+      });
+    } catch (e) {
+      Alert.alert('Could not start payment', e instanceof ApiError ? e.message : 'Please try again.');
+    } finally {
+      setBusyTier(null);
+    }
+  };
+
   const changeTier = (plan: PlanResponse, direction: 'Upgrade' | 'Downgrade') => {
+    // A paid upgrade with Paystack configured goes through a real test payment.
+    if (direction === 'Upgrade' && sub?.paymentEnabled) {
+      Alert.alert(
+        'Upgrade plan',
+        `Upgrade to ${plan.name} (${plan.priceLabel})?\n\nYou'll complete a secure Paystack payment.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue to payment', onPress: () => startPaidUpgrade(plan) },
+        ],
+      );
+      return;
+    }
+
+    // Downgrade (including the "Switch to Free" reset), or a simulated upgrade
+    // when Paystack is disabled.
     const confirmLabel = direction === 'Upgrade' ? 'Confirm & Pay' : 'Downgrade';
     const message =
       direction === 'Upgrade'

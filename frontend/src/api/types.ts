@@ -212,6 +212,15 @@ export interface SubscriptionResponse {
   activeHallsUsed: number;
   monthlyBookingsUsed: number;
   features: string[];
+  paymentEnabled: boolean; // true when online (Paystack) checkout is configured
+}
+
+/** The result of starting a Paystack checkout — the hosted URL, our reference, and
+ * the callback URL the checkout WebView watches for to detect completion. */
+export interface CheckoutResponse {
+  authorizationUrl: string;
+  reference: string;
+  callbackUrl: string;
 }
 
 export interface PlanResponse {

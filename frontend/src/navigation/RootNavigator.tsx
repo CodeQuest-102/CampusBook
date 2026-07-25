@@ -27,6 +27,7 @@ import RoomFormScreen from '../screens/admin/RoomFormScreen';
 import UsersScreen from '../screens/admin/UsersScreen';
 import AddUserScreen from '../screens/admin/AddUserScreen';
 import SubscriptionScreen from '../screens/admin/SubscriptionScreen';
+import PaymentWebViewScreen from '../screens/admin/PaymentWebViewScreen';
 
 // Secondary screens reached from Profile / Settings
 import ForgotPasswordScreen from '../screens/misc/ForgotPasswordScreen';
@@ -130,6 +131,7 @@ export default function RootNavigator() {
                 <Stack.Screen name="Users" component={UsersScreen} />
                 <Stack.Screen name="AddUser" component={AddUserScreen} />
                 <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+                <Stack.Screen name="PaymentWebView" component={PaymentWebViewScreen} />
 
                 {/* Secondary screens reached from Profile / Settings */}
                 <Stack.Screen name="MyRequests" component={MyRequestsScreen} />

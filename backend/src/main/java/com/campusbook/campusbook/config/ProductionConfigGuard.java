@@ -22,11 +22,17 @@ public class ProductionConfigGuard {
 
     private final String jwtSecret;
     private final String allowedOrigins;
+    private final boolean paystackEnabled;
+    private final String paystackSecretKey;
 
     public ProductionConfigGuard(@Value("${jwt.secret}") String jwtSecret,
-                                 @Value("${app.cors.allowed-origins}") String allowedOrigins) {
+                                 @Value("${app.cors.allowed-origins}") String allowedOrigins,
+                                 @Value("${paystack.enabled}") boolean paystackEnabled,
+                                 @Value("${paystack.secret-key:}") String paystackSecretKey) {
         this.jwtSecret = jwtSecret;
         this.allowedOrigins = allowedOrigins;
+        this.paystackEnabled = paystackEnabled;
+        this.paystackSecretKey = paystackSecretKey;
     }
 
     @PostConstruct
@@ -40,6 +46,11 @@ public class ProductionConfigGuard {
             throw new IllegalStateException(
                     "CORS_ALLOWED_ORIGINS must list explicit origins under the prod profile — "
                             + "a wildcard (\"*\") is not allowed. Set your real frontend host(s).");
+        }
+        if (paystackEnabled && (paystackSecretKey == null || paystackSecretKey.isBlank())) {
+            throw new IllegalStateException(
+                    "PAYSTACK_ENABLED is true but PAYSTACK_SECRET_KEY is not set. Provide the "
+                            + "Paystack secret key, or disable Paystack.");
         }
     }
 }

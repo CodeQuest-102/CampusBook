@@ -12,6 +12,7 @@ public record SubscriptionPlan(
         SubscriptionTier tier,
         String name,
         String priceLabel,
+        Integer priceMinor,            // charge amount in pesewas (GHS minor unit); null/0 = not payable online
         Integer activeHallLimit,       // null = unlimited
         Integer monthlyBookingLimit,   // null = unlimited
         boolean analytics,

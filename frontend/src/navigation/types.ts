@@ -40,5 +40,11 @@ export type RootStackParamList = {
   Users: undefined;
   AddUser: undefined;
   Subscription: undefined;
+  PaymentWebView: {
+    authorizationUrl: string;
+    reference: string;
+    callbackUrl: string;
+    planName: string;
+  };
   RoomForm: { mode: 'add' | 'edit'; room?: Room };
 };
