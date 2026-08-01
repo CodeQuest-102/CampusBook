@@ -87,6 +87,35 @@ describe('apiFetch', () => {
   });
 
   /**
+   * A proxy or gateway in front of the real backend can return a non-JSON
+   * body (an HTML error page, plain text) on failure. This must still come
+   * out as an ApiError carrying the real status — not a raw SyntaxError that
+   * skips every `e instanceof ApiError` check callers rely on, and loses the
+   * status code in the process.
+   */
+  it('wraps a non-JSON error body as ApiError carrying the real status, not a raw SyntaxError', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      status: 502,
+      ok: false,
+      text: () => Promise.resolve('<html><body>502 Bad Gateway</body></html>'),
+    });
+
+    await expect(apiFetch('/api/halls')).rejects.toBeInstanceOf(ApiError);
+    await expect(apiFetch('/api/halls')).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('wraps a non-JSON body on an otherwise-2xx response the same way', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      status: 200,
+      ok: true,
+      text: () => Promise.resolve('not json'),
+    });
+
+    await expect(apiFetch('/api/halls')).rejects.toBeInstanceOf(ApiError);
+    await expect(apiFetch('/api/halls')).rejects.toMatchObject({ status: 200 });
+  });
+
+  /**
    * A 401 is a session-wide event, not just this request's problem: the stored
    * token is stale everywhere, so it must be cleared and the global handler
    * fired — this is what forces the app back to the login screen from any screen.
