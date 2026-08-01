@@ -15,6 +15,7 @@ import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.dto.RecurringBookingResponse;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -199,7 +200,7 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.APPROVED);
         booking.setApprovedBy(admin);
-        Booking saved = bookingRepository.save(booking);
+        Booking saved = saveApproval(booking);
 
         audit(saved.getId(), admin, BookingAuditAction.APPROVED, null);
 
@@ -212,6 +213,28 @@ public class BookingService {
         );
 
         return saved;
+    }
+
+    private static final String OVERLAP_CONSTRAINT = "excl_bookings_hall_time_overlap";
+
+    /**
+     * Saves an approval. The conflict check above is a fast-path convenience —
+     * a DB-level exclusion constraint on `bookings` is what actually prevents two
+     * concurrent approvals for the same slot; this translates a constraint hit
+     * into the same conflict error the fast-path check throws, so a losing
+     * concurrent approval reads like any other conflict rather than a 500.
+     */
+    private Booking saveApproval(Booking booking) {
+        try {
+            return bookingRepository.save(booking);
+        } catch (DataIntegrityViolationException e) {
+            String cause = e.getMostSpecificCause().getMessage();
+            if (cause != null && cause.contains(OVERLAP_CONSTRAINT)) {
+                throw new IllegalStateException(
+                        roomLabel(booking.getHall()) + " was just booked for this time by someone else. Refresh and try again.");
+            }
+            throw e;
+        }
     }
 
     public Booking rejectBooking(Long bookingId, User admin, String reason) {
