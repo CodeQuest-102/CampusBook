@@ -51,10 +51,14 @@ export default function SignUpScreen({ navigation }: Props) {
   const idLength = CAMPUS_ID_LENGTH[role];
 
   // Student and staff IDs differ in length, so an ID typed under one role can
-  // be too long for the other. Re-truncate rather than leave it over the cap.
+  // be too long for the other. Truncating it (rather than clearing it) used to
+  // leave a same-length-but-wrong value that reads as valid — a 9-digit staff
+  // ID switched to student became an 8-digit "student ID" that was never the
+  // user's actual one. Clear it instead so a mismatched length can't silently
+  // pass as someone else's real ID.
   const onRoleChange = (next: Role) => {
     setRole(next);
-    setStaffOrStudentId((id) => id.slice(0, CAMPUS_ID_LENGTH[next]));
+    setStaffOrStudentId((id) => (id.length > CAMPUS_ID_LENGTH[next] ? '' : id));
     setIdError(null);
   };
 
