@@ -3,6 +3,7 @@ package com.campusbook.campusbook.service;
 import com.campusbook.campusbook.exception.PaymentException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -26,12 +27,18 @@ public class PaystackClient {
     private final String secretKey;
     private final String callbackUrl;
 
+    @Autowired
     public PaystackClient(@Value("${paystack.base-url:https://api.paystack.co}") String baseUrl,
                           @Value("${paystack.secret-key:}") String secretKey,
                           @Value("${paystack.callback-url:}") String callbackUrl) {
+        this(RestClient.builder().baseUrl(baseUrl).build(), secretKey, callbackUrl);
+    }
+
+    /** Test-only: injects a pre-built client, e.g. one bound to a MockRestServiceServer. */
+    PaystackClient(RestClient rest, String secretKey, String callbackUrl) {
+        this.rest = rest;
         this.secretKey = secretKey;
         this.callbackUrl = callbackUrl;
-        this.rest = RestClient.builder().baseUrl(baseUrl).build();
     }
 
     /** The redirect URL Paystack sends the browser to after checkout; the app watches for it. */
