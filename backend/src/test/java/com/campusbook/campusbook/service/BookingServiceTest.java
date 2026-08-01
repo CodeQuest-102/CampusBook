@@ -8,6 +8,7 @@ import com.campusbook.campusbook.enums.BookingAuditAction;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.enums.SubscriptionTier;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.repository.BookingAuditRepository;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
@@ -124,6 +125,32 @@ class BookingServiceTest {
                 .hasMessageContaining("past");
 
         verifyNoInteractions(notificationService);
+    }
+
+    /**
+     * A missing hall is a 404 (nothing there to act on), not a 400 like the
+     * validation failures below — the two used to share IllegalArgumentException
+     * and collapse into the same wrong status code.
+     */
+    @Test
+    void createBooking_throwsNotFoundWhenTheHallDoesNotExist() {
+        Booking b = booking(activeHall(institution()), user(1L),
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(2));
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Hall not found");
+    }
+
+    @Test
+    void getBookingById_throwsNotFoundWhenTheBookingDoesNotExist() {
+        when(bookingRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> bookingService.getBookingById(404L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Booking not found");
     }
 
     @Test

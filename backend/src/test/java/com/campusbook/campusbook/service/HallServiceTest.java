@@ -4,6 +4,7 @@ import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
@@ -170,6 +171,19 @@ class HallServiceTest {
         h.setId(7L);
         h.setInstitution(owner.getInstitution());
         return h;
+    }
+
+    /**
+     * A missing hall is a 404, not the 400 a bad-input case gets — the two
+     * used to share IllegalArgumentException and collapse into one status.
+     */
+    @Test
+    void deleteHall_throwsNotFoundWhenTheHallDoesNotExist() {
+        when(hallRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> hallService.deleteHall(999L, actor()))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Hall not found");
     }
 
     @Test

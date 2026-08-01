@@ -32,6 +32,40 @@ class GlobalExceptionHandlerTest {
         logger.detachAppender(appender);
     }
 
+    /** A missing resource (hall, booking, user, ...) — and only that — is a 404. */
+    @Test
+    void handleNotFound_mapsResourceNotFoundExceptionTo404() {
+        ResponseEntity<ErrorResponse> response =
+                handler.handleNotFound(new ResourceNotFoundException("Booking not found"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody().message()).isEqualTo("Booking not found");
+    }
+
+    /**
+     * IllegalArgumentException and IllegalStateException are caller-input
+     * problems on a request that names a real resource (a bad time window, a
+     * hall that's unavailable, a slot someone else already booked) — not a
+     * missing resource, so both must be 400, never 404.
+     */
+    @Test
+    void handleBadRequest_mapsIllegalArgumentExceptionTo400() {
+        ResponseEntity<ErrorResponse> response =
+                handler.handleBadRequest(new IllegalArgumentException("Start time must be before end time"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).isEqualTo("Start time must be before end time");
+    }
+
+    @Test
+    void handleBadRequest_mapsIllegalStateExceptionTo400() {
+        ResponseEntity<ErrorResponse> response =
+                handler.handleBadRequest(new IllegalStateException("Hall already booked for this slot"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).isEqualTo("Hall already booked for this slot");
+    }
+
     /**
      * This is the catch-all for genuinely unexpected exceptions — a bug, a DB
      * hiccup, anything not already mapped to a specific handler. The client

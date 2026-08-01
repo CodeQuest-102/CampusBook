@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.campusbook.campusbook.exception.DuplicateUserException;
 import com.campusbook.campusbook.exception.InvalidCredentialsException;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import java.util.List;
 
 @Service
@@ -79,7 +80,7 @@ public class UserService {
 
     public User updateProfile(Long userId, com.campusbook.campusbook.dto.UpdateProfileRequest patch) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         if (patch.getFullName() != null && !patch.getFullName().isBlank()) {
             user.setFullName(patch.getFullName().trim());
         }

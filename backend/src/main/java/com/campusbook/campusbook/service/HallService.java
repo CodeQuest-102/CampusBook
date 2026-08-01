@@ -3,6 +3,7 @@ package com.campusbook.campusbook.service;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
@@ -111,7 +112,7 @@ public class HallService {
     /** Raw lookup with no scoping — internal callers only. */
     public Hall getHallById(Long id) {
         return hallRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Hall not found"));
     }
 
     /** Lookup that rejects a hall belonging to another institution with a 403. */

@@ -8,6 +8,7 @@ import com.campusbook.campusbook.entity.User;
 import com.campusbook.campusbook.enums.BookingAuditAction;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.NotificationType;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingAuditRepository;
 import com.campusbook.campusbook.repository.BookingRepository;
@@ -48,7 +49,7 @@ public class BookingService {
         validateBookingWindow(booking.getStartTime(), booking.getEndTime());
 
         Hall hall = hallRepository.findById(booking.getHall().getId())
-                .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Hall not found"));
 
         if (!hall.isActive()) {
             throw new IllegalArgumentException("This hall is not available for booking");
@@ -119,7 +120,7 @@ public class BookingService {
         }
 
         Hall hall = hallRepository.findById(hallId)
-                .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Hall not found"));
         if (!hall.isActive()) {
             throw new IllegalArgumentException("This hall is not available for booking");
         }
@@ -353,7 +354,7 @@ public class BookingService {
 
     public Booking getBookingById(Long id) {
         return bookingRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
     }
 
     /** Admin view — every booking at the actor's institution, newest first. */

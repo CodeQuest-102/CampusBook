@@ -2,6 +2,7 @@ package com.campusbook.campusbook.service;
 
 import com.campusbook.campusbook.entity.Notification;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.enums.NotificationType;
 import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.repository.NotificationRepository;
@@ -52,7 +53,7 @@ public class NotificationService {
 
     public Notification markAsRead(Long notificationId, Long requestingUserId) {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
 
         if (!notification.getUser().getId().equals(requestingUserId)) {
             throw new SecurityException("You can only mark your own notifications as read");
