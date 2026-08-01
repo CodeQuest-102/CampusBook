@@ -70,6 +70,12 @@ export default function BookingFormScreen({ route, navigation }: Props) {
       : 'Select End Time';
 
   const submit = async () => {
+    const startIso = toLocalDateTimeIso(date, start);
+    const endIso = toLocalDateTimeIso(date, end);
+    if (startIso >= endIso) {
+      setFormError('End time must be after start time.');
+      return;
+    }
     if (!purpose.trim()) {
       setFormError('Please enter a purpose / event title.');
       return;
@@ -97,8 +103,8 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           purpose: purpose.trim(),
           notes: notes.trim() || undefined,
           attendance: attendanceValue,
-          startTime: toLocalDateTimeIso(date, start),
-          endTime: toLocalDateTimeIso(date, end),
+          startTime: startIso,
+          endTime: endIso,
           until: toLocalDateString(until),
         });
         const skipped = result.skipped.length;
@@ -114,8 +120,8 @@ export default function BookingFormScreen({ route, navigation }: Props) {
           purpose: purpose.trim(),
           notes: notes.trim() || undefined,
           attendance: attendanceValue,
-          startTime: toLocalDateTimeIso(date, start),
-          endTime: toLocalDateTimeIso(date, end),
+          startTime: startIso,
+          endTime: endIso,
         });
         navigation.replace('BookingConfirmation', {
           room,
