@@ -47,6 +47,10 @@ class BookingServiceTest {
     void injectRealCatalog() {
         // Real catalog so tier limits resolve; the mocked one would return null.
         ReflectionTestUtils.setField(bookingService, "subscriptionCatalog", new SubscriptionCatalog());
+        // In production this is the @Lazy proxy Spring injects so bulk actions
+        // route through @Transactional; in a plain Mockito unit test there's no
+        // proxy at all, so pointing it at the same instance is the correct stand-in.
+        ReflectionTestUtils.setField(bookingService, "self", bookingService);
     }
 
     private Institution institution() {
@@ -409,6 +413,32 @@ class BookingServiceTest {
         // The successful one still went through — one failure doesn't undo the batch.
         assertThat(first.getStatus()).isEqualTo(BookingStatus.APPROVED);
         assertThat(second.getStatus()).isEqualTo(BookingStatus.PENDING);
+    }
+
+    /**
+     * approveAll must call out through the `self` field, not invoke
+     * approveBooking directly on `this` — a plain self-invocation would
+     * silently bypass the Spring proxy in production and drop @Transactional
+     * for every id processed in a bulk action. A distinct stand-in object in
+     * `self` is the only way to prove the call actually goes through it.
+     */
+    @Test
+    void bulkApprove_routesEachIdThroughTheSelfFieldRatherThanDirectSelfInvocation() {
+        Institution inst = institution();
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+        BookingService proxyStandIn = mock(BookingService.class);
+        ReflectionTestUtils.setField(bookingService, "self", proxyStandIn);
+        Booking approved = new Booking();
+        approved.setId(10L);
+        when(proxyStandIn.approveBooking(10L, admin)).thenReturn(approved);
+
+        BookingService.BulkResult result = bookingService.approveAll(List.of(10L), admin);
+
+        verify(proxyStandIn).approveBooking(10L, admin);
+        assertThat(result.succeeded()).containsExactly(10L);
+        // Only the stand-in's method ran — no direct repository access on this path.
+        verifyNoInteractions(bookingRepository);
     }
 
     @Test

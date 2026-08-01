@@ -9,6 +9,7 @@ import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.campusbook.campusbook.dto.HallAvailabilityResponse;
 import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.repository.BookingRepository;
@@ -36,8 +37,14 @@ public class HallService {
     @Autowired
     private SubscriptionCatalog subscriptionCatalog;
 
+    @Transactional
     public Hall createHall(Hall hall, User admin) {
         Long institutionId = admin.getInstitution().getId();
+        // Serializes concurrent creates for this institution so the
+        // duplicate-room-code and room-cap checks below can't race with
+        // another create already in flight.
+        hallRepository.acquireInstitutionLock(institutionId);
+
         hallRepository.findByInstitutionIdAndRoomCode(institutionId, hall.getRoomCode())
                 .ifPresent(existing -> {
                     throw new IllegalArgumentException("Room code already exists");

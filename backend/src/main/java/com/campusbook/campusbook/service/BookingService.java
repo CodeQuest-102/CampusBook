@@ -16,8 +16,10 @@ import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.dto.RecurringBookingResponse;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -45,6 +47,24 @@ public class BookingService {
     @Autowired
     private BookingAuditRepository bookingAuditRepository;
 
+    /**
+     * Self-reference so bulk operations (which call approveBooking/rejectBooking
+     * on `this`) still go through the Spring proxy and get @Transactional
+     * applied — a plain `this.approveBooking(...)` call bypasses the proxy
+     * entirely and silently drops the transaction boundary. @Lazy breaks the
+     * circular-bean-creation this would otherwise cause.
+     */
+    @Autowired
+    @Lazy
+    private BookingService self;
+
+    /**
+     * Status change, its audit entry, and the resulting notification all
+     * succeed together or not at all — a failure partway through (e.g. the
+     * audit write) used to leave a booking committed in its new state with no
+     * audit trail and no notification sent, with nothing to catch it.
+     */
+    @Transactional
     public Booking createBooking(Booking booking) {
         validateBookingWindow(booking.getStartTime(), booking.getEndTime());
 
@@ -184,6 +204,8 @@ public class BookingService {
         return new RecurringResult(created, skipped);
     }
 
+    /** @see #createBooking for why this is transactional. */
+    @Transactional
     public Booking approveBooking(Long bookingId, User admin) {
         Booking booking = getBookingById(bookingId);
         assertSameInstitution(booking.getHall(), admin);
@@ -238,6 +260,8 @@ public class BookingService {
         }
     }
 
+    /** @see #createBooking for why this is transactional. */
+    @Transactional
     public Booking rejectBooking(Long bookingId, User admin, String reason) {
         Booking booking = getBookingById(bookingId);
         assertSameInstitution(booking.getHall(), admin);
@@ -260,6 +284,8 @@ public class BookingService {
         return saved;
     }
 
+    /** @see #createBooking for why this is transactional. */
+    @Transactional
     public Booking cancelBooking(Long bookingId, User actor) {
         Booking booking = getBookingById(bookingId);
         boolean ownsBooking = booking.getUser().getId().equals(actor.getId());
@@ -304,6 +330,8 @@ public class BookingService {
         return saved;
     }
 
+    /** @see #createBooking for why this is transactional. */
+    @Transactional
     public Booking rescheduleBooking(Long bookingId, User actor, LocalDateTime newStart, LocalDateTime newEnd) {
         Booking booking = getBookingById(bookingId);
 
@@ -445,16 +473,19 @@ public class BookingService {
      * another approval already took the slot — and collapsing that into one
      * error would hide which ones didn't make it.
      *
-     * <p>Each id is attempted independently; a failure leaves earlier successes
-     * committed, since nothing here shares an enclosing transaction.
+     * <p>Each id is attempted independently, and each one's own status change +
+     * audit + notification is still atomic (via {@link #self}, so the call goes
+     * through the transactional proxy) — but nothing here wraps the whole batch,
+     * so a failure on one id leaves earlier successes committed rather than
+     * rolling back the batch.
      */
     public BulkResult approveAll(List<Long> ids, User admin) {
-        return applyToEach(ids, id -> approveBooking(id, admin));
+        return applyToEach(ids, id -> self.approveBooking(id, admin));
     }
 
     /** Reject many bookings with a shared reason. See {@link #approveAll}. */
     public BulkResult rejectAll(List<Long> ids, User admin, String reason) {
-        return applyToEach(ids, id -> rejectBooking(id, admin, reason));
+        return applyToEach(ids, id -> self.rejectBooking(id, admin, reason));
     }
 
     private BulkResult applyToEach(List<Long> ids, java.util.function.Consumer<Long> action) {
