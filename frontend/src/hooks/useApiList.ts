@@ -33,6 +33,14 @@ export function useApiList<Raw, T>(
   const mapItemRef = useRef(mapItem);
   mapItemRef.current = mapItem;
 
+  // Bumped by load()/refresh() — either one starts a fresh list, so it
+  // invalidates any older in-flight request. loadMore() captures the current
+  // id instead of bumping it (it's appending to *this* list, not starting a
+  // new one) and only applies its page if nothing has reset the list under
+  // it — otherwise a slow loadMore page can land after a reload already
+  // replaced the list and get appended onto the wrong data.
+  const requestIdRef = useRef(0);
+
   const captureError = (e: unknown, fallback: string) => {
     setError(e instanceof ApiError ? e.message : fallback);
     setErrorStatus(e instanceof ApiError ? e.status : null);
@@ -40,52 +48,61 @@ export function useApiList<Raw, T>(
 
   /** Load page 0, replacing the list. Used on first focus and retry. */
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     setErrorStatus(null);
     try {
       const res = await loadPageRef.current(0);
+      if (requestId !== requestIdRef.current) return;
       setItems(res.content.map(mapItemRef.current));
       nextPage.current = 1;
       hasMore.current = !res.last;
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       captureError(e, 'Could not load data. Please try again.');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
   /** Pull-to-refresh: reload page 0 without the full-screen loading state. */
   const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setRefreshing(true);
     try {
       const res = await loadPageRef.current(0);
+      if (requestId !== requestIdRef.current) return;
       setItems(res.content.map(mapItemRef.current));
       nextPage.current = 1;
       hasMore.current = !res.last;
       setError(null);
       setErrorStatus(null);
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       captureError(e, 'Could not refresh. Please try again.');
     } finally {
-      setRefreshing(false);
+      if (requestId === requestIdRef.current) setRefreshing(false);
     }
   }, []);
 
   /** Append the next page. No-op while already loading, refreshing, or exhausted. */
   const loadMore = useCallback(async () => {
     if (loadingMore || refreshing || loading || !hasMore.current) return;
+    const requestId = requestIdRef.current;
     setLoadingMore(true);
     try {
       const res = await loadPageRef.current(nextPage.current);
+      if (requestId !== requestIdRef.current) return;
       setItems((cur) => [...cur, ...res.content.map(mapItemRef.current)]);
       nextPage.current += 1;
       hasMore.current = !res.last;
     } catch (e) {
       // Keep what we have; surface the error so the footer can show a retry.
+      if (requestId !== requestIdRef.current) return;
       captureError(e, 'Could not load more. Pull to refresh.');
     } finally {
-      setLoadingMore(false);
+      if (requestId === requestIdRef.current) setLoadingMore(false);
     }
   }, [loading, loadingMore, refreshing]);
 
@@ -96,13 +113,7 @@ export function useApiList<Raw, T>(
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      (async () => {
-        if (active) await load();
-      })();
-      return () => {
-        active = false;
-      };
+      load();
     }, [load]),
   );
 

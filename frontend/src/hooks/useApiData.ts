@@ -19,47 +19,55 @@ export function useApiData<T>(loader: () => Promise<T>) {
   const loaderRef = useRef(loader);
   loaderRef.current = loader;
 
+  // Bumped by every load()/refresh() call. A response only gets applied if
+  // its id is still the latest one — otherwise a newer call (e.g. from a
+  // rapid refocus) has already superseded it, and applying an out-of-order
+  // response here would silently overwrite fresher state with stale data.
+  const requestIdRef = useRef(0);
+
   const captureError = (e: unknown, fallback: string) => {
     setError(e instanceof ApiError ? e.message : fallback);
     setErrorStatus(e instanceof ApiError ? e.status : null);
   };
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     setErrorStatus(null);
     try {
-      setData(await loaderRef.current());
+      const result = await loaderRef.current();
+      if (requestId !== requestIdRef.current) return;
+      setData(result);
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       captureError(e, 'Could not load data. Please try again.');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
   /** Pull-to-refresh: reloads without flipping the full-screen loading state. */
   const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setRefreshing(true);
     try {
-      setData(await loaderRef.current());
+      const result = await loaderRef.current();
+      if (requestId !== requestIdRef.current) return;
+      setData(result);
       setError(null);
       setErrorStatus(null);
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       captureError(e, 'Could not refresh. Please try again.');
     } finally {
-      setRefreshing(false);
+      if (requestId === requestIdRef.current) setRefreshing(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      (async () => {
-        if (active) await load();
-      })();
-      return () => {
-        active = false;
-      };
+      load();
     }, [load]),
   );
 
