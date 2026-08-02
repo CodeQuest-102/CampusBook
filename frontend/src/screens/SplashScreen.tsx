@@ -82,10 +82,10 @@ export default function SplashScreen({ canExit = true, onFinish }: Props) {
       </View>
 
       <Animated.View style={[styles.footer, { opacity: text }]}>
-        <View style={styles.knustBadge}>
+        <View style={styles.institutionBadge}>
           <Ionicons name="school" size={22} color={colors.primaryDark} />
         </View>
-        <Text style={styles.knust}>KNUST</Text>
+        <Text style={styles.institutionText}>MULTI-CAMPUS</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   footer: { alignItems: 'center', paddingBottom: spacing.xxl },
-  knustBadge: {
+  institutionBadge: {
     width: 44,
     height: 44,
     borderRadius: radius.pill,
@@ -129,5 +129,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
-  knust: { color: colors.white, fontWeight: fontWeight.semibold, letterSpacing: 2, fontSize: 13 },
+  institutionText: {
+    color: colors.white,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 2,
+    fontSize: 13,
+  },
 });

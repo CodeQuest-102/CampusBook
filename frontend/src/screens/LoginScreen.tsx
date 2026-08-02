@@ -45,7 +45,7 @@ export default function LoginScreen({ navigation }: Props) {
       <TextField
         label="Email or ID"
         icon="mail-outline"
-        placeholder="you@st.knust.edu.gh"
+        placeholder="you@yourinstitution.edu"
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}

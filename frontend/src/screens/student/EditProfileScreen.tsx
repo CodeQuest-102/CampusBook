@@ -65,7 +65,7 @@ export default function EditProfileScreen() {
           value={email}
           editable={false}
           icon="mail-outline"
-          placeholder="you@knust.edu.gh"
+          placeholder="you@yourinstitution.edu"
           keyboardType="email-address"
           autoCapitalize="none"
         />
