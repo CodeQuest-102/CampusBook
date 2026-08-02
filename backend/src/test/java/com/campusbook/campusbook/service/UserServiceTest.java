@@ -229,6 +229,26 @@ class UserServiceTest {
         verify(institutionRepository, never()).findAll();
     }
 
+    /**
+     * Institution assignment always comes from the acting admin, never the
+     * email — so an email that doesn't belong to the admin's own institution
+     * must be rejected outright, rather than silently creating an account
+     * whose email domain disagrees with the institution it's actually scoped to.
+     */
+    @Test
+    void createByAdmin_rejectsAnEmailOutsideTheAdminsInstitutionDomain() {
+        Institution ridgeview = institution(7L);
+        ridgeview.setEmailDomain("ridgeview.edu");
+        User admin = user(1L, ridgeview);
+        AdminCreateUserRequest request = adminRequest(); // email is ama.mensah@knust.edu.gh
+
+        assertThatThrownBy(() -> userService.createByAdmin(request, admin))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ridgeview.edu");
+
+        verify(userRepository, never()).save(any());
+    }
+
     @Test
     void createByAdmin_trimsFreeTextFields() {
         User admin = user(1L, institution(7L));

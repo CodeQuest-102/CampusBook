@@ -6,7 +6,6 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -32,12 +31,11 @@ public class AdminCreateUserRequest {
     @NotBlank
     private String fullName;
 
+    // Must belong to the acting admin's own institution's domain — checked in
+    // UserService.createByAdmin, where the admin (and thus their institution)
+    // is known; a @Pattern here can't be institution-aware.
     @Email
     @NotBlank
-    @Pattern(
-            regexp = "^[^@\\s]+@([a-z0-9-]+\\.)*knust\\.edu\\.gh$",
-            flags = Pattern.Flag.CASE_INSENSITIVE,
-            message = "Use a KNUST email address (e.g. name@knust.edu.gh)")
     private String email;
 
     @NotBlank
