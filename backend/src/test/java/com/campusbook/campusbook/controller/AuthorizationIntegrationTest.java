@@ -46,11 +46,15 @@ class AuthorizationIntegrationTest {
     }
 
     private String adminToken() throws Exception {
-        return tokenFor("admin@campusbook.local", "admin12345");
+        return tokenFor("admin@knust.edu.gh", "admin12345");
     }
 
     private String studentToken() throws Exception {
-        return tokenFor("student@campusbook.local", "student12345");
+        return tokenFor("student@knust.edu.gh", "student12345");
+    }
+
+    private String platformAdminToken() throws Exception {
+        return tokenFor("platform@campusbook.local", "platform12345");
     }
 
     /* --------------------------- unauthenticated --------------------------- */
@@ -149,6 +153,33 @@ class AuthorizationIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
+    /**
+     * Proves UserService.createByAdmin's auto-verify actually works end-to-end —
+     * an admin-provisioned account must be usable immediately, unlike a
+     * self-registered one (see login_withUnverifiedSelfRegisteredAccount_is403).
+     */
+    @Test
+    void createUser_asAdmin_thenNewUserCanLoginImmediately_is200() throws Exception {
+        String staffId = String.valueOf(200_000_000 + new java.util.Random().nextInt(99_999_999));
+        String email = "provisioned.%s@knust.edu.gh".formatted(staffId);
+        String createBody = """
+                {"fullName":"Provisioned Lecturer","email":"%s",
+                 "staffOrStudentId":"%s","password":"password1","role":"LECTURER",
+                 "department":"History"}""".formatted(email, staffId);
+        mvc.perform(post("/api/users")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated());
+
+        String loginBody = """
+                {"emailOrId":"%s","password":"password1"}""".formatted(email);
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andExpect(status().isOk());
+    }
+
     @Test
     void createUser_withNonKnustEmail_is400() throws Exception {
         // Rejected on the address before uniqueness is ever consulted, so a
@@ -177,7 +208,9 @@ class AuthorizationIntegrationTest {
     }
 
     @Test
-    void register_withNonKnustEmail_is400() throws Exception {
+    void register_withUnrecognizedDomain_is400() throws Exception {
+        // No institution has this domain registered — UserService.registerUser
+        // can't resolve which campus this belongs to.
         String body = """
                 {"fullName":"Outsider","email":"outsider@gmail.com",
                  "staffOrStudentId":"20551298","password":"password1","role":"STUDENT_LEADER"}""";
@@ -187,12 +220,175 @@ class AuthorizationIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void register_withRidgeviewEmail_is201() throws Exception {
+        // Proves domain-based resolution works end-to-end for a second seeded
+        // institution, not just the original KNUST one. 201, not 200 — the
+        // account is created but unverified, so no session is issued yet.
+        String staffId = String.valueOf(20_000_000 + new java.util.Random().nextInt(999_999));
+        String body = """
+                {"fullName":"Ridgeview Student","email":"student.%s@ridgeview.edu",
+                 "staffOrStudentId":"%s","password":"password1","role":"STUDENT_LEADER"}""".formatted(staffId, staffId);
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void register_withLookalikeDomain_is400() throws Exception {
+        String body = """
+                {"fullName":"Sneaky","email":"sneaky@knust.edu.gh.evil.com",
+                 "staffOrStudentId":"20551297","password":"password1","role":"STUDENT_LEADER"}""";
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    /* ------------------- email verification: hard login gate ---------------- */
+
+    /**
+     * The load-bearing property of the whole feature: a freshly self-registered
+     * account can't log in — even with the exactly-correct password — until its
+     * email is verified. 403, not 401, so the frontend can tell this apart from
+     * a wrong password and route to the verification screen instead.
+     */
+    @Test
+    void login_withUnverifiedSelfRegisteredAccount_is403() throws Exception {
+        String staffId = String.valueOf(20_000_000 + new java.util.Random().nextInt(999_999));
+        String email = "student.%s@ridgeview.edu".formatted(staffId);
+        String registerBody = """
+                {"fullName":"Ridgeview Student","email":"%s",
+                 "staffOrStudentId":"%s","password":"password1","role":"STUDENT_LEADER"}""".formatted(email, staffId);
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody))
+                .andExpect(status().isCreated());
+
+        String loginBody = """
+                {"emailOrId":"%s","password":"password1"}""".formatted(email);
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void verifyEmail_withBadCode_is401() throws Exception {
+        String staffId = String.valueOf(20_000_000 + new java.util.Random().nextInt(999_999));
+        String email = "student.%s@ridgeview.edu".formatted(staffId);
+        String registerBody = """
+                {"fullName":"Ridgeview Student","email":"%s",
+                 "staffOrStudentId":"%s","password":"password1","role":"STUDENT_LEADER"}""".formatted(email, staffId);
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody))
+                .andExpect(status().isCreated());
+
+        String verifyBody = """
+                {"emailOrId":"%s","otp":"000000"}""".formatted(email);
+        mvc.perform(post("/api/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(verifyBody))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /* --------------------------- platform-admin only ------------------------ */
+
+    @Test
+    void listInstitutions_withoutToken_is401() throws Exception {
+        mvc.perform(get("/api/platform/institutions"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * The test that actually proves PLATFORM_ADMIN doesn't accidentally widen
+     * what a regular institution ADMIN can reach — a platform admin is a
+     * separate role, not an ADMIN with extra powers, so an ordinary campus
+     * admin must be shut out of the cross-institution endpoints just like
+     * everyone else.
+     */
+    @Test
+    void listInstitutions_asRegularAdmin_is403() throws Exception {
+        mvc.perform(get("/api/platform/institutions").header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listInstitutions_asPlatformAdmin_is200() throws Exception {
+        mvc.perform(get("/api/platform/institutions").header("Authorization", "Bearer " + platformAdminToken()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void createInstitution_asRegularAdmin_is403() throws Exception {
+        // A well-formed body, so this proves the role gate itself rejects the
+        // request — not bean validation short-circuiting on an empty one.
+        String body = """
+                {"institutionName":"Sneaky School","emailDomain":"sneaky.edu",
+                 "tier":"FREE","adminFullName":"Sneaky Admin","adminEmail":"admin@sneaky.edu",
+                 "adminStaffOrStudentId":"SNEAKY001","adminPassword":"password1"}""";
+        mvc.perform(post("/api/platform/institutions")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Institution name and email domain are both unique for the life of the
+     * database, and this suite runs against a real one — so a fixed identity
+     * here would pass once and then fail on every later run as a duplicate.
+     * Both are randomised per run to keep the test repeatable.
+     */
+    @Test
+    void createInstitution_asPlatformAdmin_is201() throws Exception {
+        String suffix = String.valueOf(300_000_000 + new java.util.Random().nextInt(99_999_999));
+        String body = """
+                {"institutionName":"Test Institution %s","emailDomain":"test-%s.edu",
+                 "tier":"FREE","adminFullName":"New Admin","adminEmail":"admin@test-%s.edu",
+                 "adminStaffOrStudentId":"NEW%s","adminPassword":"password1"}""".formatted(suffix, suffix, suffix, suffix);
+        mvc.perform(post("/api/platform/institutions")
+                        .header("Authorization", "Bearer " + platformAdminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+    }
+
+    /**
+     * Proves PlatformAdminService.createInstitution's auto-verify actually works
+     * end-to-end — a newly onboarded school's first admin must be usable
+     * immediately.
+     */
+    @Test
+    void createInstitution_asPlatformAdmin_newAdminCanLoginImmediately_is200() throws Exception {
+        String suffix = String.valueOf(300_000_000 + new java.util.Random().nextInt(99_999_999));
+        String adminEmail = "admin@test-%s.edu".formatted(suffix);
+        String createBody = """
+                {"institutionName":"Test Institution %s","emailDomain":"test-%s.edu",
+                 "tier":"FREE","adminFullName":"New Admin","adminEmail":"%s",
+                 "adminStaffOrStudentId":"NEW%s","adminPassword":"password1"}""".formatted(suffix, suffix, adminEmail, suffix);
+        mvc.perform(post("/api/platform/institutions")
+                        .header("Authorization", "Bearer " + platformAdminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated());
+
+        String loginBody = """
+                {"emailOrId":"%s","password":"password1"}""".formatted(adminEmail);
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andExpect(status().isOk());
+    }
+
     /* ------------------------- reset: bad code is 401 ---------------------- */
 
     @Test
     void resetPassword_withBadCode_is401() throws Exception {
         String body = """
-                {"emailOrId":"student@campusbook.local","otp":"000000","newPassword":"whatever1"}""";
+                {"emailOrId":"student@knust.edu.gh","otp":"000000","newPassword":"whatever1"}""";
         mvc.perform(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))

@@ -4,7 +4,10 @@ import type {
   ForgotPasswordPayload,
   LoginPayload,
   RegisterPayload,
+  RegisterResponse,
+  ResendVerificationPayload,
   ResetPasswordPayload,
+  VerifyEmailPayload,
 } from './types';
 
 export function login(payload: LoginPayload): Promise<AuthResponse> {
@@ -15,8 +18,27 @@ export function login(payload: LoginPayload): Promise<AuthResponse> {
   });
 }
 
-export function register(payload: RegisterPayload): Promise<AuthResponse> {
-  return apiFetch<AuthResponse>('/api/auth/register', {
+/** No token in the response — the account can't log in until its email is verified. */
+export function register(payload: RegisterPayload): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>('/api/auth/register', {
+    method: 'POST',
+    body: payload,
+    auth: false,
+  });
+}
+
+/** Submit the emailed code to finish verifying a self-registered account. */
+export function verifyEmail(payload: VerifyEmailPayload): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/api/auth/verify-email', {
+    method: 'POST',
+    body: payload,
+    auth: false,
+  });
+}
+
+/** Ask for a fresh verification code. Always resolves (no account oracle). */
+export function resendVerification(payload: ResendVerificationPayload): Promise<void> {
+  return apiFetch<void>('/api/auth/resend-verification', {
     method: 'POST',
     body: payload,
     auth: false,

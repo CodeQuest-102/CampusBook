@@ -36,8 +36,69 @@ public class DataSeeder {
                         Institution institution = new Institution();
                         institution.setName("KNUST");
                         institution.setTier(SubscriptionTier.FREE);
+                        institution.setEmailDomain("knust.edu.gh");
                         return institutionRepository.save(institution);
                     });
+
+            // Second institution, deliberately fictional — no halls/bookings of its
+            // own. Its main purpose is to make domain-based self-registration
+            // (UserService.resolveInstitutionForEmail) actually verifiable: without
+            // a second institution on file, a registration would trivially land on
+            // KNUST regardless of whether the domain match is correct. Also carries
+            // an admin account so the platform-admin monitoring view has a second
+            // real institution to show, not just KNUST.
+            Institution ridgeview = institutionRepository.findAll().stream()
+                    .filter(i -> i.getName().equals("Ridgeview University"))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        Institution institution = new Institution();
+                        institution.setName("Ridgeview University");
+                        institution.setTier(SubscriptionTier.FREE);
+                        institution.setEmailDomain("ridgeview.edu");
+                        return institutionRepository.save(institution);
+                    });
+
+            // Third institution — created the same way any platform admin would
+            // onboard a new school, so its own admin belongs to its own domain.
+            Institution legon = institutionRepository.findAll().stream()
+                    .filter(i -> i.getName().equals("Legon"))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        Institution institution = new Institution();
+                        institution.setName("Legon");
+                        institution.setTier(SubscriptionTier.FREE);
+                        institution.setEmailDomain("ug.edu.gh");
+                        return institutionRepository.save(institution);
+                    });
+
+            // Sentinel institution platform-admin accounts belong to, purely to
+            // satisfy users.institution_id's NOT NULL constraint — a platform
+            // admin's real power comes from their role, not this institution.
+            // Marked `internal` so PlatformAdminService.listInstitutions excludes
+            // it from the cross-institution monitoring view.
+            Institution internalInst = institutionRepository.findAll().stream()
+                    .filter(i -> i.getName().equals("CampusBook Internal"))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        Institution institution = new Institution();
+                        institution.setName("CampusBook Internal");
+                        institution.setTier(SubscriptionTier.ENTERPRISE);
+                        institution.setEmailDomain("campusbook.internal");
+                        institution.setInternal(true);
+                        return institutionRepository.save(institution);
+                    });
+
+            if (!userRepository.existsByEmail("platform@campusbook.local")) {
+                User platformAdmin = new User();
+                platformAdmin.setFullName("CampusBook Platform Admin");
+                platformAdmin.setEmail("platform@campusbook.local");
+                platformAdmin.setStaffOrStudentId("PLATFORM001");
+                platformAdmin.setPassword(passwordEncoder.encode("platform12345"));
+                platformAdmin.setRole(Role.PLATFORM_ADMIN);
+                platformAdmin.setInstitution(internalInst);
+                platformAdmin.setEmailVerified(true);
+                userRepository.save(platformAdmin);
+            }
 
             if (hallRepository.count() == 0) {
                 hallRepository.saveAll(java.util.List.of(
@@ -49,50 +110,77 @@ public class DataSeeder {
                 ));
             }
 
-            if (!userRepository.existsByEmail("admin@campusbook.local")) {
+            if (!userRepository.existsByEmail("admin@knust.edu.gh")) {
                 User admin = new User();
                 admin.setFullName("CampusBook Admin");
-                admin.setEmail("admin@campusbook.local");
+                admin.setEmail("admin@knust.edu.gh");
                 admin.setStaffOrStudentId("ADMIN001");
                 admin.setPassword(passwordEncoder.encode("admin12345"));
                 admin.setRole(Role.ADMIN);
                 admin.setDepartment("Facilities");
                 admin.setInstitution(knust);
+                admin.setEmailVerified(true);
                 userRepository.save(admin);
             }
 
-            if (!userRepository.existsByEmail("lecturer@campusbook.local")
+            if (!userRepository.existsByEmail("admin@ridgeview.edu")) {
+                User ridgeviewAdmin = new User();
+                ridgeviewAdmin.setFullName("Ridgeview Admin");
+                ridgeviewAdmin.setEmail("admin@ridgeview.edu");
+                ridgeviewAdmin.setStaffOrStudentId("RIDGEVIEW-ADMIN001");
+                ridgeviewAdmin.setPassword(passwordEncoder.encode("ridgeview12345"));
+                ridgeviewAdmin.setRole(Role.ADMIN);
+                ridgeviewAdmin.setInstitution(ridgeview);
+                ridgeviewAdmin.setEmailVerified(true);
+                userRepository.save(ridgeviewAdmin);
+            }
+
+            if (!userRepository.existsByEmail("admin@ug.edu.gh")) {
+                User legonAdmin = new User();
+                legonAdmin.setFullName("Legon Admin");
+                legonAdmin.setEmail("admin@ug.edu.gh");
+                legonAdmin.setStaffOrStudentId("LEGON-ADMIN001");
+                legonAdmin.setPassword(passwordEncoder.encode("legon12345"));
+                legonAdmin.setRole(Role.ADMIN);
+                legonAdmin.setInstitution(legon);
+                legonAdmin.setEmailVerified(true);
+                userRepository.save(legonAdmin);
+            }
+
+            if (!userRepository.existsByEmail("lecturer@knust.edu.gh")
                     && !userRepository.existsByStaffOrStudentId("200912345")) {
                 User lecturer = new User();
                 lecturer.setFullName("Dr. Kwaku Mensah");
-                lecturer.setEmail("lecturer@campusbook.local");
+                lecturer.setEmail("lecturer@knust.edu.gh");
                 lecturer.setStaffOrStudentId("200912345");
                 lecturer.setPassword(passwordEncoder.encode("lecturer12345"));
                 lecturer.setRole(Role.LECTURER);
                 lecturer.setDepartment("Computer Science");
                 lecturer.setInstitution(knust);
+                lecturer.setEmailVerified(true);
                 userRepository.save(lecturer);
             }
 
-            if (!userRepository.existsByEmail("student@campusbook.local")
+            if (!userRepository.existsByEmail("student@knust.edu.gh")
                     && !userRepository.existsByStaffOrStudentId("20551234")) {
                 User student = new User();
                 student.setFullName("Abubakar Sadiq");
-                student.setEmail("student@campusbook.local");
+                student.setEmail("student@knust.edu.gh");
                 student.setStaffOrStudentId("20551234");
                 student.setPassword(passwordEncoder.encode("student12345"));
                 student.setRole(Role.STUDENT_LEADER);
                 student.setDepartment("Computer Science");
                 student.setInstitution(knust);
+                student.setEmailVerified(true);
                 userRepository.save(student);
             }
 
             // Demo bookings — only on an empty bookings table, so this never
             // stacks up on restart or disturbs a database that already has data.
             if (bookingRepository.count() == 0) {
-                User admin = userRepository.findByEmail("admin@campusbook.local").orElse(null);
-                User student = userRepository.findByEmail("student@campusbook.local").orElse(null);
-                User lecturer = userRepository.findByEmail("lecturer@campusbook.local").orElse(null);
+                User admin = userRepository.findByEmail("admin@knust.edu.gh").orElse(null);
+                User student = userRepository.findByEmail("student@knust.edu.gh").orElse(null);
+                User lecturer = userRepository.findByEmail("lecturer@knust.edu.gh").orElse(null);
                 var halls = hallRepository.findAll();
 
                 if (admin != null && student != null && lecturer != null && halls.size() >= 5) {

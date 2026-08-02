@@ -6,7 +6,6 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -26,23 +25,20 @@ public class RegisterRequest {
     private static final Set<Role> SELF_REGISTERABLE_ROLES =
             EnumSet.of(Role.STUDENT_LEADER, Role.LECTURER);
 
-    /** Digits in a KNUST student ID. */
-    private static final String STUDENT_ID_PATTERN = "\\d{8}";
-
-    /** Digits in a KNUST staff ID. */
-    private static final String STAFF_ID_PATTERN = "\\d{9}";
-
     @NotBlank
     private String fullName;
 
+    // Domain legitimacy (which institution, if any, this email belongs to) is
+    // resolved against the institutions table in UserService.registerUser —
+    // it can't be a @Pattern here since that can't consult the database, and
+    // the set of registered institutions changes without a client release.
     @Email
     @NotBlank
-    @Pattern(
-            regexp = "^[^@\\s]+@([a-z0-9-]+\\.)*knust\\.edu\\.gh$",
-            flags = Pattern.Flag.CASE_INSENSITIVE,
-            message = "Use your KNUST email address (e.g. you@st.knust.edu.gh)")
     private String email;
 
+    // Institution-issued identifiers have no universal format — a digit-count
+    // rule here would be one institution's convention imposed on every other
+    // registered institution — so this is only required to be non-blank.
     @NotBlank
     private String staffOrStudentId;
 
@@ -65,24 +61,5 @@ public class RegisterRequest {
     @AssertTrue(message = "Role must be STUDENT_LEADER or LECTURER — admin accounts are provisioned by the institution")
     public boolean isRoleSelfRegisterable() {
         return role == null || SELF_REGISTERABLE_ROLES.contains(role); // @NotNull owns the null case
-    }
-
-    /**
-     * KNUST IDs are role-dependent — students carry 8 digits, staff 9 — so this
-     * can't be expressed as a @Pattern on the field itself.
-     */
-    @JsonIgnore
-    @AssertTrue(message = "Student ID must be exactly 8 digits and Staff ID exactly 9 digits")
-    public boolean isStaffOrStudentIdValid() {
-        if (role == null || !SELF_REGISTERABLE_ROLES.contains(role)) {
-            // @NotNull and isRoleSelfRegisterable own these; reporting a digit
-            // rule for a role that can't register at all would only add noise.
-            return true;
-        }
-        if (staffOrStudentId == null || staffOrStudentId.isBlank()) {
-            return true; // @NotBlank already reports this — don't double up the message
-        }
-        String id = staffOrStudentId.trim();
-        return role == Role.LECTURER ? id.matches(STAFF_ID_PATTERN) : id.matches(STUDENT_ID_PATTERN);
     }
 }

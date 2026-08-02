@@ -8,11 +8,20 @@
 
 import type { Role } from './data/types';
 
-/** Digits in a valid campus ID, by role. Admins are provisioned, not self-registered. */
+/**
+ * Digits in a valid campus ID, by role — 0 means "no fixed format, just
+ * required." Self-registration now spans institutions with their own ID
+ * conventions, so a fixed digit count can't be a platform-wide rule; it would
+ * just be one institution's format imposed on every other one. Kept as a
+ * per-role map (rather than deleting it outright) so campusIdLabel's
+ * student/staff distinction and the digit-only keyboard for a *typed* numeric
+ * ID still have a natural home if a future institution wants one enforced.
+ */
 export const CAMPUS_ID_LENGTH: Record<Role, number> = {
-  student: 8,
-  staff: 9,
+  student: 0,
+  staff: 0,
   admin: 0,
+  platform_admin: 0,
 };
 
 /** Field label for a role's campus ID. Admins carry a staff number. */
@@ -20,19 +29,21 @@ export function campusIdLabel(role: Role): string {
   return role === 'student' ? 'Student ID' : 'Staff ID';
 }
 
-/** Strips everything that isn't a digit — campus IDs are numeric. */
+/** Strips everything that isn't a digit — for the roles whose ID is numeric. */
 export function digitsOnly(value: string): string {
   return value.replace(/[^0-9]/g, '');
 }
 
-/** Returns an error message for an invalid campus ID, or null when it's fine. */
+/**
+ * Returns an error message for an invalid campus ID, or null when it's fine.
+ * Institution-issued IDs have no universal format, so past requiring one at
+ * all, this only enforces a digit-count when CAMPUS_ID_LENGTH sets one.
+ */
 export function validateCampusId(role: Role, value: string): string | null {
   const expected = CAMPUS_ID_LENGTH[role];
   const id = value.trim();
   const label = campusIdLabel(role);
 
-  // Admin numbers are institution-issued with no published format (the seeded
-  // one is "ADMIN001"), so there's nothing to check past "they gave us one".
   if (!expected) return id ? null : `${label} is required.`;
 
   if (!id) return `${label} is required.`;
@@ -52,16 +63,20 @@ export function validateFullName(value: string): string | null {
 /* ------------------------------- email ----------------------------------- */
 
 /**
- * CampusBook accounts belong to KNUST, so sign-up only accepts institutional
- * addresses. Any subdomain is allowed (`st.knust.edu.gh` today, others later).
+ * Used for both self-registration (SignUpScreen) and admin-provisioned
+ * accounts (AddUserScreen) — the legitimate domain (or, for AddUserScreen,
+ * the acting admin's own institution domain) lives server-side, because it
+ * can change without a client release. This is just a basic shape check so a
+ * typo is caught before the round-trip; the server remains the real gate on
+ * which domains actually resolve to an institution.
  */
-export const KNUST_EMAIL_PATTERN = /^[^@\s]+@([a-z0-9-]+\.)*knust\.edu\.gh$/i;
+const EMAIL_SHAPE_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-export function validateKnustEmail(value: string): string | null {
+export function validateEmail(value: string): string | null {
   const email = value.trim();
   if (!email) return 'Email address is required.';
-  if (!KNUST_EMAIL_PATTERN.test(email)) {
-    return 'Use your KNUST email (e.g. you@st.knust.edu.gh).';
+  if (!EMAIL_SHAPE_PATTERN.test(email)) {
+    return 'Enter a valid email address.';
   }
   return null;
 }

@@ -34,6 +34,7 @@ export type RootStackParamList = {
 
   // Auth extras + secondary destinations reached from Profile / Settings
   ForgotPassword: undefined;
+  VerifyEmail: { emailOrId: string };
   MyRequests: undefined;
   Settings: undefined;
   HelpSupport: undefined;
@@ -47,4 +48,7 @@ export type RootStackParamList = {
     planName: string;
   };
   RoomForm: { mode: 'add' | 'edit'; room?: Room };
+
+  // Platform-admin only
+  CreateInstitution: undefined;
 };

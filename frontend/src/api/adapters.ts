@@ -39,6 +39,8 @@ export function roleToBackend(role: Role): BackendRole {
 
 export function roleFromBackend(role: BackendRole | string | null): Role {
   switch (role) {
+    case 'PLATFORM_ADMIN':
+      return 'platform_admin';
     case 'ADMIN':
       return 'admin';
     case 'LECTURER':

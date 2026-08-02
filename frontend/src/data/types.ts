@@ -4,7 +4,7 @@
  * server DTOs onto them via `src/api/adapters.ts`.
  */
 
-export type Role = 'student' | 'staff' | 'admin';
+export type Role = 'student' | 'staff' | 'admin' | 'platform_admin';
 
 export type RoomStatus = 'available' | 'in_use' | 'maintenance';
 export type BookingStatus = 'approved' | 'pending' | 'rejected' | 'cancelled';

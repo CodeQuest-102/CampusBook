@@ -22,11 +22,16 @@ export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { displayName, role, profile, signOut } = useApp();
   const roleLabel =
-    role === 'staff'
+    role === 'platform_admin'
+      ? 'Platform Administrator'
+      : role === 'staff'
       ? `${profile.department} · Staff`
       : role === 'admin'
       ? 'Administrator'
       : `${profile.department} · Student`;
+
+  // Platform admins have no personal bookings — only Settings/Help apply.
+  const rows = role === 'platform_admin' ? ROWS.filter((r) => r.key !== 'bookings' && r.key !== 'requests') : ROWS;
 
   return (
     <>
@@ -48,10 +53,10 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.menu}>
-          {ROWS.map((r, i) => (
+          {rows.map((r, i) => (
             <TouchableOpacity
               key={r.key}
-              style={[styles.row, i < ROWS.length - 1 && styles.rowBorder]}
+              style={[styles.row, i < rows.length - 1 && styles.rowBorder]}
               activeOpacity={0.7}
               onPress={() => {
                 switch (r.key) {

@@ -14,11 +14,6 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * KNUST IDs are 8 digits for students and 9 for staff. The rule depends on the
- * submitted role, so it lives in an @AssertTrue on the DTO rather than a
- * @Pattern on the field.
- */
 class RegisterRequestTest {
 
     private static ValidatorFactory factory;
@@ -52,31 +47,16 @@ class RegisterRequestTest {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * Institution-issued IDs have no universal format — a digit-count rule
+     * would be one institution's convention imposed on every other registered
+     * institution — so any non-blank value is accepted at this layer.
+     */
     @Test
-    void acceptsAnEightDigitStudentId() {
+    void acceptsAnyNonBlankId() {
         assertTrue(violations(request(Role.STUDENT_LEADER, "20551234")).isEmpty());
-    }
-
-    @Test
-    void acceptsANineDigitStaffId() {
         assertTrue(violations(request(Role.LECTURER, "200912345")).isEmpty());
-    }
-
-    @Test
-    void rejectsAStudentIdOfStaffLength() {
-        assertEquals(Set.of("staffOrStudentIdValid"), violations(request(Role.STUDENT_LEADER, "200912345")));
-    }
-
-    @Test
-    void rejectsAStaffIdOfStudentLength() {
-        assertEquals(Set.of("staffOrStudentIdValid"), violations(request(Role.LECTURER, "20551234")));
-    }
-
-    @Test
-    void rejectsShortLongAndNonNumericIds() {
-        assertTrue(violations(request(Role.STUDENT_LEADER, "2055123")).contains("staffOrStudentIdValid"));
-        assertTrue(violations(request(Role.STUDENT_LEADER, "205512345")).contains("staffOrStudentIdValid"));
-        assertTrue(violations(request(Role.STUDENT_LEADER, "STU12345")).contains("staffOrStudentIdValid"));
+        assertTrue(violations(request(Role.STUDENT_LEADER, "STU-2026-001")).isEmpty());
     }
 
     /**
@@ -95,9 +75,7 @@ class RegisterRequestTest {
     }
 
     @Test
-    void reportsOnlyTheRoleProblemForAnAdminWithABadId() {
-        // The digit rule is meaningless for a role that can't register at all —
-        // surfacing both would just be noise.
+    void reportsOnlyTheRoleProblemForAnAdminWithAnArbitraryId() {
         assertEquals(Set.of("roleSelfRegisterable"), violations(request(Role.ADMIN, "nope")));
     }
 
@@ -118,24 +96,25 @@ class RegisterRequestTest {
         assertEquals(Set.of("staffOrStudentId"), violations(request(Role.STUDENT_LEADER, "")));
     }
 
+    /**
+     * Domain legitimacy — which institution, if any, an email belongs to — is
+     * resolved against the institutions table in UserService.registerUser, not
+     * enforced here (a @Pattern can't query the database). See
+     * UserServiceTest for the subdomain/lookalike/unrecognized-domain coverage
+     * that used to live in this class.
+     */
     @Test
-    void requiresAKnustEmailAddress() {
-        RegisterRequest outside = request(Role.STUDENT_LEADER, "20551234");
-        outside.setEmail("someone@gmail.com");
-        assertTrue(violations(outside).contains("email"));
-
-        // A lookalike domain must not slip through.
-        RegisterRequest lookalike = request(Role.STUDENT_LEADER, "20551234");
-        lookalike.setEmail("someone@knust.edu.gh.evil.com");
-        assertTrue(violations(lookalike).contains("email"));
+    void acceptsAnyWellFormedEmailAtTheDtoLevel() {
+        RegisterRequest outsideKnust = request(Role.STUDENT_LEADER, "20551234");
+        outsideKnust.setEmail("someone@gmail.com");
+        assertTrue(violations(outsideKnust).isEmpty());
     }
 
     @Test
-    void acceptsKnustSubdomains() {
-        RegisterRequest staffDomain = request(Role.LECTURER, "200912345");
-        staffDomain.setEmail("k.mensah@knust.edu.gh");
-        assertTrue(violations(staffDomain).isEmpty());
-        // request() already uses @st.knust.edu.gh, covered by the accept tests above.
+    void rejectsAMalformedEmailAddress() {
+        RegisterRequest malformed = request(Role.STUDENT_LEADER, "20551234");
+        malformed.setEmail("not-an-email");
+        assertTrue(violations(malformed).contains("email"));
     }
 
     @Test

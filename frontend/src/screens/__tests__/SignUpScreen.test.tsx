@@ -4,6 +4,7 @@ import { TouchableOpacity, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SignUpScreen from '../SignUpScreen';
 import TextField from '../../components/TextField';
+import Button from '../../components/Button';
 
 const mockSignUp = jest.fn();
 jest.mock('../../navigation/AppContext', () => ({ useApp: () => ({ signUp: mockSignUp }) }));
@@ -45,38 +46,70 @@ function pressRoleChip(tree: renderer.ReactTestRenderer, label: 'Student Leader'
   });
 }
 
+function fieldByLabel(tree: renderer.ReactTestRenderer, label: string) {
+  return tree.root.findAllByType(TextField).find((n) => n.props.label === label)!;
+}
+
+async function flush() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe('SignUpScreen', () => {
-  /**
-   * The gap this closes: switching roles used to truncate the ID to the new
-   * role's length instead of clearing it, so a 9-digit staff ID switched to
-   * student silently became a same-length-but-wrong 8-digit "student ID" —
-   * never the user's actual one, yet indistinguishable from a valid entry.
-   */
-  it('clears the campus ID when switching to a role whose ID is shorter, instead of truncating it', () => {
-    const tree = render();
-    pressRoleChip(tree, 'Lecturer');
-    act(() => {
-      idField(tree).props.onChangeText('200912345');
-    });
-    expect(idField(tree).props.value).toBe('200912345');
-
-    pressRoleChip(tree, 'Student Leader');
-
-    expect(idField(tree).props.value).toBe('');
-    expect(idField(tree).props.label).toBe('Student ID');
+  beforeEach(() => {
+    mockSignUp.mockReset();
+    navigation.navigate.mockReset();
   });
 
-  it('leaves an ID untouched when switching to a role whose ID is the same or a longer length', () => {
+  /**
+   * After a successful sign-up the account still can't log in — its email
+   * needs verifying first — so this must land on VerifyEmail, not the
+   * authenticated app.
+   */
+  it('navigates to VerifyEmail with the submitted address after a successful sign-up', async () => {
+    mockSignUp.mockResolvedValue(undefined);
     const tree = render();
-    // Default role is student (8 digits); type a too-short, still-in-progress id.
+
     act(() => {
-      idField(tree).props.onChangeText('2055');
+      fieldByLabel(tree, 'Full Name').props.onChangeText('Abubakar Sadiq');
+      fieldByLabel(tree, 'Email Address').props.onChangeText('new.student@knust.edu.gh');
+      idField(tree).props.onChangeText('20551234');
+      fieldByLabel(tree, 'Password').props.onChangeText('password1');
+      fieldByLabel(tree, 'Confirm Password').props.onChangeText('password1');
     });
+
+    const submit = tree.root.findAllByType(Button).find((n) => n.props.title === 'Sign Up')!;
+    act(() => {
+      submit.props.onPress();
+    });
+    await flush();
+
+    expect(mockSignUp).toHaveBeenCalled();
+    expect(navigation.navigate).toHaveBeenCalledWith('VerifyEmail', {
+      emailOrId: 'new.student@knust.edu.gh',
+    });
+  });
+
+  /**
+   * Institution-issued IDs have no fixed format anymore (CAMPUS_ID_LENGTH is 0
+   * for every self-registerable role), so switching roles has nothing to
+   * truncate or clear — a typed ID survives the switch untouched. This used to
+   * auto-clear a same-length-but-now-wrong value when the two roles had
+   * different digit counts; that whole code path only fires again if a future
+   * role sets a length back on CAMPUS_ID_LENGTH.
+   */
+  it('leaves a typed campus ID untouched when switching roles', () => {
+    const tree = render();
+    act(() => {
+      idField(tree).props.onChangeText('20551234');
+    });
+    expect(idField(tree).props.value).toBe('20551234');
 
     pressRoleChip(tree, 'Lecturer');
 
-    // 4 digits doesn't exceed staff's 9-digit cap, so nothing was corrupted —
-    // it's still incomplete, but that's what the field's own validation is for.
-    expect(idField(tree).props.value).toBe('2055');
+    expect(idField(tree).props.value).toBe('20551234');
+    expect(idField(tree).props.label).toBe('Staff ID');
   });
 });

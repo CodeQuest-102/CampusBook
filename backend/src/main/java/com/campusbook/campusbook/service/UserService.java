@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import com.campusbook.campusbook.exception.DuplicateUserException;
 import com.campusbook.campusbook.exception.InvalidCredentialsException;
 import com.campusbook.campusbook.exception.ResourceNotFoundException;
+import com.campusbook.campusbook.util.EmailDomainMatcher;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -24,22 +26,52 @@ public class UserService {
     public User registerUser(User user) {
         assertNotAlreadyRegistered(user.getEmail(), user.getStaffOrStudentId());
 
-        Institution institution = institutionRepository.findFirstByOrderByIdAsc()
-                .orElseThrow(() -> new IllegalStateException("No institution configured"));
+        Institution institution = resolveInstitutionForEmail(user.getEmail());
         user.setInstitution(institution);
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        // The one creation path that must leave this false — self-registration is
+        // the only unverified trust gap in the system (see EmailVerificationService).
+        // Redundant with the entity default; kept explicit so it can't be missed.
+        user.setEmailVerified(false);
         return userRepository.save(user);
     }
 
     /**
+     * Multi-campus self-registration is domain-based: the registering email's
+     * domain must match one institution's registered domain, exactly or via
+     * any subdomain (see EmailDomainMatcher). Institution counts are small for
+     * a B2B product (dozens at most), so this loads them all and matches in
+     * Java rather than pushing suffix logic into SQL.
+     *
+     * <p>When more than one institution's domain matches (e.g. both "edu.gh"
+     * and "knust.edu.gh" are registered and the email is "x@st.knust.edu.gh"),
+     * the most specific — longest — matching domain wins, so a broadly
+     * registered domain can't swallow a more specific one owned by another
+     * institution.
+     */
+    private Institution resolveInstitutionForEmail(String email) {
+        String domain = EmailDomainMatcher.domainOf(email);
+        if (domain == null) {
+            throw new IllegalArgumentException("Enter a valid email address");
+        }
+        return institutionRepository.findAll().stream()
+                .filter(i -> EmailDomainMatcher.matches(domain, i.getEmailDomain()))
+                .max(Comparator.comparingInt(i -> i.getEmailDomain().length()))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "We don't recognize \"" + domain + "\" as a registered institution email domain. "
+                                + "Contact your institution's administrator if you believe this is a mistake."));
+    }
+
+    /**
      * Provision an account on behalf of an admin. The institution comes from the
-     * acting admin rather than {@code findFirstByOrderByIdAsc} — an admin can
-     * only ever create colleagues at their own campus, which is what keeps the
-     * multi-campus isolation intact on the write side too.
+     * acting admin rather than resolved from the registering email's domain —
+     * an admin can only ever create colleagues at their own campus, which is
+     * what keeps the multi-campus isolation intact on the write side too.
      */
     public User createByAdmin(AdminCreateUserRequest request, User admin) {
         assertNotAlreadyRegistered(request.getEmail(), request.getStaffOrStudentId());
+        assertEmailBelongsToInstitution(request.getEmail(), admin.getInstitution());
 
         User user = new User();
         user.setFullName(request.getFullName().trim());
@@ -49,12 +81,36 @@ public class UserService {
         user.setDepartment(request.getDepartment() == null ? null : request.getDepartment().trim());
         user.setInstitution(admin.getInstitution());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        // An admin vouching for a colleague isn't the same trust gap as an
+        // anonymous public registration — provisioned accounts skip verification.
+        user.setEmailVerified(true);
 
         return userRepository.save(user);
     }
 
-    /** Email and campus ID are both unique across the whole system, not per campus. */
-    private void assertNotAlreadyRegistered(String email, String staffOrStudentId) {
+    /**
+     * An admin-provisioned account's email must belong to the admin's own
+     * institution's domain — institution assignment always comes from the
+     * acting admin, never the email (see createByAdmin above), so letting the
+     * two disagree would produce an account whose email domain doesn't match
+     * the institution it actually belongs to.
+     */
+    private void assertEmailBelongsToInstitution(String email, Institution institution) {
+        String domain = EmailDomainMatcher.domainOf(email);
+        if (domain == null || !EmailDomainMatcher.matches(domain, institution.getEmailDomain())) {
+            throw new IllegalArgumentException(
+                    "Use an email address at " + institution.getEmailDomain()
+                            + " — the account will belong to " + institution.getName() + ".");
+        }
+    }
+
+    /**
+     * Email and campus ID are both unique across the whole system, not per
+     * campus. Package-private so {@link PlatformAdminService} can reuse the
+     * same rule when provisioning a new institution's first admin, instead of
+     * duplicating it.
+     */
+    void assertNotAlreadyRegistered(String email, String staffOrStudentId) {
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateUserException("Email already registered");
         }

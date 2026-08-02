@@ -16,7 +16,7 @@ const FAQS = [
 ];
 
 const CONTACTS: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }[] = [
-  { icon: 'mail-outline', label: 'Email us', value: 'support@campusbook.knust.edu.gh' },
+  { icon: 'mail-outline', label: 'Email us', value: 'support@campusbook.app' },
   { icon: 'call-outline', label: 'Call us', value: '+233 32 206 0000' },
   { icon: 'chatbubbles-outline', label: 'Live chat', value: 'Mon–Fri, 8am–5pm' },
 ];

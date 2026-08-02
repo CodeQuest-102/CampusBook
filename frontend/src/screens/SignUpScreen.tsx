@@ -12,8 +12,8 @@ import {
   campusIdLabel,
   digitsOnly,
   validateCampusId,
+  validateEmail,
   validateFullName,
-  validateKnustEmail,
   validatePassword,
   validatePasswordMatch,
 } from '../validation';
@@ -49,16 +49,21 @@ export default function SignUpScreen({ navigation }: Props) {
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const idLength = CAMPUS_ID_LENGTH[role];
+  // Institution-issued IDs have no universal format, so most roles are
+  // free-form; a role only gets the numeric keyboard/length cap when
+  // CAMPUS_ID_LENGTH actually sets one.
+  const numericId = idLength > 0;
 
-  // Student and staff IDs differ in length, so an ID typed under one role can
-  // be too long for the other. Truncating it (rather than clearing it) used to
-  // leave a same-length-but-wrong value that reads as valid — a 9-digit staff
-  // ID switched to student became an 8-digit "student ID" that was never the
-  // user's actual one. Clear it instead so a mismatched length can't silently
-  // pass as someone else's real ID.
+  // Student and staff IDs, where a digit length IS set, can differ in length —
+  // an ID typed under one role could be too long for the other. Truncating it
+  // (rather than clearing it) used to leave a same-length-but-wrong value that
+  // reads as valid — a 9-digit staff ID switched to student became an 8-digit
+  // "student ID" that was never the user's actual one. Clear it instead so a
+  // mismatched length can't silently pass as someone else's real ID.
   const onRoleChange = (next: Role) => {
     setRole(next);
-    setStaffOrStudentId((id) => (id.length > CAMPUS_ID_LENGTH[next] ? '' : id));
+    const cap = CAMPUS_ID_LENGTH[next];
+    if (cap > 0) setStaffOrStudentId((id) => (id.length > cap ? '' : id));
     setIdError(null);
   };
 
@@ -69,7 +74,7 @@ export default function SignUpScreen({ navigation }: Props) {
     // "fill in all required fields", which named no field to go and fix.
     const problems = {
       name: validateFullName(fullName),
-      email: validateKnustEmail(email),
+      email: validateEmail(email),
       id: validateCampusId(role, staffOrStudentId),
       password: validatePassword(password),
       confirm: validatePasswordMatch(password, confirm),
@@ -94,7 +99,8 @@ export default function SignUpScreen({ navigation }: Props) {
         department: department.trim() || undefined,
         password,
       });
-      // Success → navigator swaps to the authenticated stack automatically.
+      // Not logged in yet — the account needs its email verified first.
+      navigation.navigate('VerifyEmail', { emailOrId: email.trim() });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Sign up failed. Please try again.');
     } finally {
@@ -122,11 +128,11 @@ export default function SignUpScreen({ navigation }: Props) {
         <TextField
           label="Email Address"
           icon="mail-outline"
-          placeholder="you@st.knust.edu.gh"
+          placeholder="you@example.edu"
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
-          helper="Use your KNUST address"
+          helper="We'll match this to your institution automatically"
           error={emailError}
           value={email}
           onChangeText={(t) => {
@@ -155,14 +161,15 @@ export default function SignUpScreen({ navigation }: Props) {
         <TextField
           label={campusIdLabel(role)}
           icon="id-card-outline"
-          placeholder={role === 'staff' ? 'e.g. 200912345' : 'e.g. 20551234'}
-          keyboardType="number-pad"
-          maxLength={idLength}
-          helper={`Exactly ${idLength} digits`}
+          placeholder="Your institution-issued ID"
+          keyboardType={numericId ? 'number-pad' : 'default'}
+          autoCapitalize={numericId ? 'none' : 'characters'}
+          maxLength={numericId ? idLength : undefined}
+          helper={numericId ? `Exactly ${idLength} digits` : 'Any institution-issued ID'}
           error={idError}
           value={staffOrStudentId}
           onChangeText={(t) => {
-            setStaffOrStudentId(digitsOnly(t));
+            setStaffOrStudentId(numericId ? digitsOnly(t) : t);
             if (idError) setIdError(null);
           }}
         />

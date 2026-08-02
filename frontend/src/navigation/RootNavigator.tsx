@@ -28,9 +28,12 @@ import UsersScreen from '../screens/admin/UsersScreen';
 import AddUserScreen from '../screens/admin/AddUserScreen';
 import SubscriptionScreen from '../screens/admin/SubscriptionScreen';
 import PaymentWebViewScreen from '../screens/admin/PaymentWebViewScreen';
+import InstitutionsScreen from '../screens/platform/InstitutionsScreen';
+import CreateInstitutionScreen from '../screens/platform/CreateInstitutionScreen';
 
 // Secondary screens reached from Profile / Settings
 import ForgotPasswordScreen from '../screens/misc/ForgotPasswordScreen';
+import VerifyEmailScreen from '../screens/misc/VerifyEmailScreen';
 import MyRequestsScreen from '../screens/misc/MyRequestsScreen';
 import SettingsScreen from '../screens/misc/SettingsScreen';
 import HelpSupportScreen from '../screens/misc/HelpSupportScreen';
@@ -53,6 +56,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 /** Home tab picks the dashboard for the active role. */
 function HomeDashboard() {
   const { role } = useApp();
+  if (role === 'platform_admin') return <InstitutionsScreen />;
   if (role === 'admin') return <AdminDashboard />;
   if (role === 'staff') return <StaffDashboard />;
   return <StudentDashboard />;
@@ -68,7 +72,9 @@ function MainTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home" component={HomeDashboard} />
-      {role === 'admin' ? (
+      {role === 'platform_admin' ? (
+        <Tab.Screen name="Profile" component={ProfileScreen} />
+      ) : role === 'admin' ? (
         <>
           <Tab.Screen name="Requests" component={PendingRequestsScreen} />
           <Tab.Screen name="Calendar" component={CalendarScreen} />
@@ -107,6 +113,7 @@ export default function RootNavigator() {
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="SignUp" component={SignUpScreen} />
                 <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+                <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
               </>
             ) : (
               // Authenticated app.
@@ -132,6 +139,7 @@ export default function RootNavigator() {
                 <Stack.Screen name="AddUser" component={AddUserScreen} />
                 <Stack.Screen name="Subscription" component={SubscriptionScreen} />
                 <Stack.Screen name="PaymentWebView" component={PaymentWebViewScreen} />
+                <Stack.Screen name="CreateInstitution" component={CreateInstitutionScreen} />
 
                 {/* Secondary screens reached from Profile / Settings */}
                 <Stack.Screen name="MyRequests" component={MyRequestsScreen} />

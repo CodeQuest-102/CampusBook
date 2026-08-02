@@ -45,6 +45,15 @@ public class User {
 
     private String department;
 
+    /**
+     * True once the account has confirmed it controls its email address (see
+     * EmailVerificationService). Defaults false as a fail-secure choice — any
+     * creation path that forgets to set this explicitly leaves the account
+     * unverified, never accidentally verified.
+     */
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

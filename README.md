@@ -10,8 +10,10 @@ subscription model (individual users are never charged).
 
 ## Features
 
-- **Auth** — register / login (email or staff-student ID), JWT, password reset by
-  emailed one-time code, profile editing, rate-limited auth endpoints
+- **Auth** — register / login (email or staff-student ID), JWT, email
+  verification by one-time code (a self-registered account can't log in until
+  it's verified), password reset by emailed one-time code, profile editing,
+  rate-limited auth endpoints
 - **Rooms (halls)** — browse, details, admin CRUD, time-based availability, and
   server-side search / filtering (capacity, equipment, free-in-a-time-window)
 - **Bookings** — create with purpose / attendance / notes, conflict detection,
@@ -44,6 +46,7 @@ can neither see nor act on another campus's rooms, requests or reports.
 | Student leader | `STUDENT_LEADER` | browse, book, manage own bookings |
 | Lecturer | `LECTURER` | same as student leader |
 | Admin | `ADMIN` | approve/reject, manage rooms & users, analytics, subscription |
+| Platform admin | `PLATFORM_ADMIN` | onboard new institutions, view a read-only cross-institution summary — no access to any one school's rooms, bookings or users |
 
 | Tier | Price | Limits / features |
 |------|-------|-------------------|
@@ -102,6 +105,11 @@ API docs (Swagger UI): http://localhost:8080/swagger-ui.html
 > so the one-time reset code is **printed to the backend console** in a banner.
 > That keeps the whole reset flow demoable without an SMTP account.
 
+> **Email verification in development:** same deal — the code that's emailed on
+> self-registration is also **printed to the backend console** in a banner. A
+> self-registered account can't log in until that code is confirmed via
+> `POST /api/auth/verify-email`.
+
 ### 3. Frontend
 
 ```bash
@@ -116,15 +124,30 @@ The iOS simulator reaches the backend at `localhost:8080` automatically. For a
 
 ## Seeded demo logins
 
-| Role | Email | Staff / Student ID | Password |
-|------|-------|--------------------|----------|
-| Admin | `admin@campusbook.local` | `ADMIN001` | `admin12345` |
-| Lecturer | `lecturer@campusbook.local` | `200912345` | `lecturer12345` |
-| Student | `student@campusbook.local` | `20551234` | `student12345` |
+| Institution | Role | Email | Staff / Student ID | Password |
+|-------------|------|-------|--------------------|----------|
+| KNUST | Admin | `admin@knust.edu.gh` | `ADMIN001` | `admin12345` |
+| KNUST | Lecturer | `lecturer@knust.edu.gh` | `200912345` | `lecturer12345` |
+| KNUST | Student | `student@knust.edu.gh` | `20551234` | `student12345` |
+| Ridgeview University | Admin | `admin@ridgeview.edu` | `RIDGEVIEW-ADMIN001` | `ridgeview12345` |
+| Legon | Admin | `admin@ug.edu.gh` | `LEGON-ADMIN001` | `legon12345` |
+| CampusBook Internal | Platform admin | `platform@campusbook.local` | `PLATFORM001` | `platform12345` |
 
-Either the email or the ID works as the login handle. KNUST IDs are **8 digits for
-students, 9 for staff** — enforced on sign-up by both the app and the API. Admin
-accounts are provisioned rather than self-registered, so they're exempt.
+Either the email or the ID works as the login handle. Campus IDs have no fixed
+format — each institution issues its own. Admin and platform-admin accounts are
+provisioned rather than self-registered, so sign-up's ID/email rules don't apply
+to them.
+
+Ridgeview University and Legon exist to prove the app actually works across more
+than one institution — self-registration resolves an institution from the
+registering email's domain, and each admin above is scoped to their own
+institution's data only (see "All data is scoped to the acting user's
+institution" under Features).
+
+The platform admin belongs to a seeded, internal-only "CampusBook Internal"
+institution that never appears in its own institution list — it's a sentinel to
+satisfy the `institution_id` foreign key, not a real customer. Platform-admin
+accounts are seed-only for now; there's no self-service way to create another one.
 
 ## Configuration (env vars)
 
@@ -154,6 +177,33 @@ logging and Swagger, stops Flyway from baselining an unknown schema, and — via
 development default or `CORS_ALLOWED_ORIGINS` is `*`. A crash at boot is
 deliberate: it's better than quietly running an insecure instance.
 
+### Deploying to Render
+
+The backend ships with a `backend/Dockerfile` (Render has no native Java
+runtime, so it deploys as a Docker web service):
+
+1. Create a **Postgres** instance on Render; from its Connections page, compose
+   `DB_URL=jdbc:postgresql://<host>:<port>/<database>` (Render's own combined
+   connection string is `postgres://…`, which the JDBC driver can't parse
+   directly) and set `DB_USERNAME`/`DB_PASSWORD` from the same page.
+2. Create a **Web Service** from this repo — Docker runtime, Dockerfile path
+   `backend/Dockerfile`, Docker context `backend/`.
+3. Set env vars: `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` (above), a fresh
+   `JWT_SECRET` (never the bundled default), `CORS_ALLOWED_ORIGINS` (a real
+   origin, not `*`), `SPRING_PROFILES_ACTIVE=prod`, and the `MAIL_*` vars for
+   Brevo (see below). Render injects `PORT` itself — `server.port` already
+   honors it, no `SERVER_PORT` needed.
+4. Deploy and check the logs: Flyway migrating cleanly, the seeder adding demo
+   data, no `ProductionConfigGuard` startup failure.
+
+Then point the Expo app at it via `frontend/.env`'s `EXPO_PUBLIC_API_URL`.
+
+Outbound mail (password reset, email verification) is suggested via **Brevo**'s
+SMTP relay — see the `MAIL_*` comments in `backend/.env.example`. It's a
+drop-in credential swap (`MAIL_HOST=smtp-relay.brevo.com`); the `MAIL_FROM`
+address must be verified in Brevo's dashboard first (Senders, Domains &
+Dedicated IPs → Senders).
+
 ## Testing
 
 ```bash
@@ -171,10 +221,20 @@ self-registered).
 
 All endpoints except `/api/auth/**` require `Authorization: Bearer <token>`.
 A missing, invalid or expired token returns **401**; a valid token without the
-required role returns **403**.
+required role returns **403**. `/api/auth/login` also uses 403 for an unrelated
+reason — see below — so a 403 there isn't a role gate.
 
 **Auth**
-- `POST /api/auth/{register,login}`
+- `POST /api/auth/register` — `201`, no token in the response: the account
+  can't log in until its email is verified (see `/verify-email` below)
+- `POST /api/auth/login` — `200` with a token, or **403** if the account's
+  email isn't verified yet (distinct from a **401** wrong-password/credentials
+  failure, so the frontend can route the user to verification instead of
+  showing a generic sign-in error)
+- `POST /api/auth/verify-email` — `{ emailOrId, otp }` → `200` with a token,
+  finishing the sign-in `/register` didn't
+- `POST /api/auth/resend-verification` — `{ emailOrId }` → always 204, same
+  account-enumeration protection as `/forgot-password`
 - `POST /api/auth/forgot-password` — always 204, so it can't be used to probe
   which accounts exist
 - `POST /api/auth/reset-password` — `{ emailOrId, otp, newPassword }`

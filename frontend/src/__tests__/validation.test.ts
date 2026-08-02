@@ -5,8 +5,8 @@ import {
   digitsOnly,
   validateAttendance,
   validateCampusId,
+  validateEmail,
   validateFullName,
-  validateKnustEmail,
   validatePassword,
   validatePasswordMatch,
 } from '../validation';
@@ -29,34 +29,28 @@ describe('campusIdLabel', () => {
 });
 
 describe('validateCampusId', () => {
-  it('accepts an 8-digit student ID and a 9-digit staff ID', () => {
+  /**
+   * Self-registration spans institutions with their own ID conventions now,
+   * so a fixed digit count can't be a platform-wide rule — every role is
+   * free-form, the same way admin numbers always have been.
+   */
+  it('has no fixed digit length for any role', () => {
+    expect(CAMPUS_ID_LENGTH.student).toBe(0);
+    expect(CAMPUS_ID_LENGTH.staff).toBe(0);
+    expect(CAMPUS_ID_LENGTH.admin).toBe(0);
+    expect(CAMPUS_ID_LENGTH.platform_admin).toBe(0);
+  });
+
+  it('accepts any non-blank id regardless of shape', () => {
     expect(validateCampusId('student', '20551234')).toBeNull();
-    expect(validateCampusId('staff', '200912345')).toBeNull();
-  });
-
-  it('rejects an ID of the other role’s length', () => {
-    expect(validateCampusId('student', '200912345')).toMatch(/exactly 8 digits/);
-    expect(validateCampusId('staff', '20551234')).toMatch(/exactly 9 digits/);
-  });
-
-  it('rejects short, long and non-numeric values', () => {
-    expect(validateCampusId('student', '2055123')).toMatch(/exactly 8 digits/);
-    expect(validateCampusId('student', '205512345')).toMatch(/exactly 8 digits/);
-    expect(validateCampusId('student', 'STU12345')).toMatch(/digits only/);
+    expect(validateCampusId('staff', 'STU-2026-001')).toBeNull();
+    expect(validateCampusId('admin', 'ADMIN001')).toBeNull();
+    expect(validateCampusId('admin', '7')).toBeNull();
   });
 
   it('reports an empty value as required, using the role’s label', () => {
     expect(validateCampusId('student', '')).toBe('Student ID is required.');
     expect(validateCampusId('staff', '   ')).toBe('Staff ID is required.');
-  });
-
-  it('exempts admins from the digit rules — their numbers are free-form', () => {
-    expect(CAMPUS_ID_LENGTH.admin).toBe(0);
-    expect(validateCampusId('admin', 'ADMIN001')).toBeNull();
-    expect(validateCampusId('admin', '7')).toBeNull();
-  });
-
-  it('still requires an admin to supply some ID', () => {
     expect(validateCampusId('admin', '  ')).toBe('Staff ID is required.');
   });
 });
@@ -76,21 +70,19 @@ describe('validateFullName', () => {
   });
 });
 
-describe('validateKnustEmail', () => {
-  it('accepts knust.edu.gh and its subdomains', () => {
-    expect(validateKnustEmail('a.sadiq@st.knust.edu.gh')).toBeNull();
-    expect(validateKnustEmail('k.mensah@knust.edu.gh')).toBeNull();
-    expect(validateKnustEmail('X.Y@ST.KNUST.EDU.GH')).toBeNull(); // case-insensitive
+describe('validateEmail', () => {
+  it('accepts any well-formed address regardless of domain', () => {
+    expect(validateEmail('a.sadiq@st.knust.edu.gh')).toBeNull();
+    expect(validateEmail('someone@ridgeview.edu')).toBeNull();
+    expect(validateEmail('someone@gmail.com')).toBeNull();
   });
 
-  it('rejects addresses outside the institution', () => {
-    expect(validateKnustEmail('someone@gmail.com')).toMatch(/KNUST email/);
-    expect(validateKnustEmail('someone@knust.edu.gh.evil.com')).toMatch(/KNUST email/);
-    expect(validateKnustEmail('notanemail')).toMatch(/KNUST email/);
+  it('rejects a malformed address', () => {
+    expect(validateEmail('notanemail')).toMatch(/valid email/);
   });
 
   it('reports an empty value as required', () => {
-    expect(validateKnustEmail('  ')).toBe('Email address is required.');
+    expect(validateEmail('  ')).toBe('Email address is required.');
   });
 });
 
