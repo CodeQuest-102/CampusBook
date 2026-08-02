@@ -19,6 +19,18 @@ public interface HallRepository extends JpaRepository<Hall, Long> {
 
     long countByInstitutionId(Long institutionId);
 
+    /**
+     * Serializes concurrent hall-creation for one institution around the
+     * room-cap check in {@link com.campusbook.campusbook.service.HallService#createHall}.
+     * The cap is a count against a subscription-tier-dependent limit, not a
+     * fixed structural invariant, so it can't be expressed as a DB constraint
+     * the way the booking-overlap one is — a transaction-scoped Postgres
+     * advisory lock is the standard tool for "check then insert, no row to
+     * lock" races like this one. Released automatically at transaction end.
+     */
+    @Query(value = "SELECT pg_advisory_xact_lock(:institutionId)", nativeQuery = true)
+    void acquireInstitutionLock(@Param("institutionId") long institutionId);
+
     /* ---- institution-scoped finders (multi-campus isolation) ---- */
 
     List<Hall> findByInstitutionId(Long institutionId);

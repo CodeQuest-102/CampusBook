@@ -80,11 +80,19 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (response.status === 204) return undefined as T;
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // A non-JSON body (e.g. an HTML error page from a proxy in front of the
+    // real backend) must still surface as an ApiError, not a raw SyntaxError
+    // that skips every `e instanceof ApiError` check callers rely on.
+    throw new ApiError(response.status, `Unexpected response from the server (${response.status}).`);
+  }
 
   if (!response.ok) {
     const message =
-      (data && (data.message as string)) || `Request failed (${response.status})`;
+      (data as { message?: string } | undefined)?.message || `Request failed (${response.status})`;
     throw new ApiError(response.status, message);
   }
 

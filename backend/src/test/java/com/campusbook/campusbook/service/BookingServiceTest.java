@@ -8,6 +8,7 @@ import com.campusbook.campusbook.enums.BookingAuditAction;
 import com.campusbook.campusbook.enums.BookingStatus;
 import com.campusbook.campusbook.enums.Role;
 import com.campusbook.campusbook.enums.SubscriptionTier;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.repository.BookingAuditRepository;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -45,6 +47,10 @@ class BookingServiceTest {
     void injectRealCatalog() {
         // Real catalog so tier limits resolve; the mocked one would return null.
         ReflectionTestUtils.setField(bookingService, "subscriptionCatalog", new SubscriptionCatalog());
+        // In production this is the @Lazy proxy Spring injects so bulk actions
+        // route through @Transactional; in a plain Mockito unit test there's no
+        // proxy at all, so pointing it at the same instance is the correct stand-in.
+        ReflectionTestUtils.setField(bookingService, "self", bookingService);
     }
 
     private Institution institution() {
@@ -123,6 +129,32 @@ class BookingServiceTest {
                 .hasMessageContaining("past");
 
         verifyNoInteractions(notificationService);
+    }
+
+    /**
+     * A missing hall is a 404 (nothing there to act on), not a 400 like the
+     * validation failures below — the two used to share IllegalArgumentException
+     * and collapse into the same wrong status code.
+     */
+    @Test
+    void createBooking_throwsNotFoundWhenTheHallDoesNotExist() {
+        Booking b = booking(activeHall(institution()), user(1L),
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(2));
+
+        when(hallRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> bookingService.createBooking(b))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Hall not found");
+    }
+
+    @Test
+    void getBookingById_throwsNotFoundWhenTheBookingDoesNotExist() {
+        when(bookingRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> bookingService.getBookingById(404L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Booking not found");
     }
 
     @Test
@@ -287,6 +319,52 @@ class BookingServiceTest {
         verifyNoInteractions(notificationService);
     }
 
+    /**
+     * The fast-path conflict check above can't see this — it only queries
+     * already-APPROVED bookings, so two concurrent approvals of different
+     * PENDING requests both pass it. The DB's exclusion constraint is what
+     * actually catches the second one, surfacing here as a save() failure
+     * that must read like the ordinary conflict error, not a 500.
+     */
+    @Test
+    void approveBooking_translatesOverlapConstraintViolationIntoConflictError() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+        Booking pending = booking(hall, user(1L, inst), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(pending));
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(10L), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenThrow(new DataIntegrityViolationException(
+                "ERROR: conflicting key value violates exclusion constraint \"excl_bookings_hall_time_overlap\""));
+
+        assertThatThrownBy(() -> bookingService.approveBooking(10L, admin))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("was just booked");
+    }
+
+    @Test
+    void approveBooking_rethrowsUnrelatedDataIntegrityViolations() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+        Booking pending = booking(hall, user(1L, inst), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(pending));
+        when(bookingRepository.findOverlappingBookings(eq(2L), eq(10L), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenThrow(new DataIntegrityViolationException(
+                "ERROR: null value in column \"hall_id\" violates not-null constraint"));
+
+        assertThatThrownBy(() -> bookingService.approveBooking(10L, admin))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     @Test
     void createBooking_rejectsHallAtAnotherInstitution() {
         Hall hall = activeHall(institution()); // institution id 1
@@ -337,6 +415,32 @@ class BookingServiceTest {
         assertThat(second.getStatus()).isEqualTo(BookingStatus.PENDING);
     }
 
+    /**
+     * approveAll must call out through the `self` field, not invoke
+     * approveBooking directly on `this` — a plain self-invocation would
+     * silently bypass the Spring proxy in production and drop @Transactional
+     * for every id processed in a bulk action. A distinct stand-in object in
+     * `self` is the only way to prove the call actually goes through it.
+     */
+    @Test
+    void bulkApprove_routesEachIdThroughTheSelfFieldRatherThanDirectSelfInvocation() {
+        Institution inst = institution();
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+        BookingService proxyStandIn = mock(BookingService.class);
+        ReflectionTestUtils.setField(bookingService, "self", proxyStandIn);
+        Booking approved = new Booking();
+        approved.setId(10L);
+        when(proxyStandIn.approveBooking(10L, admin)).thenReturn(approved);
+
+        BookingService.BulkResult result = bookingService.approveAll(List.of(10L), admin);
+
+        verify(proxyStandIn).approveBooking(10L, admin);
+        assertThat(result.succeeded()).containsExactly(10L);
+        // Only the stand-in's method ran — no direct repository access on this path.
+        verifyNoInteractions(bookingRepository);
+    }
+
     @Test
     void bulkApprove_recordsAnAuditEntryPerSuccess() {
         Institution inst = institution();
@@ -357,6 +461,48 @@ class BookingServiceTest {
                 a.getAction() == BookingAuditAction.APPROVED
                         && a.getBookingId().equals(10L)
                         && a.getActor().getId().equals(50L)));
+    }
+
+    /**
+     * Same race as approveBooking_translatesOverlapConstraintViolationIntoConflictError,
+     * but through bulk-approve — the per-request-outcome contract must hold even
+     * when the failure comes from the DB constraint rather than the fast-path check.
+     */
+    @Test
+    void bulkApprove_reportsOverlapConstraintHitAsPerIdFailure() {
+        Institution inst = institution();
+        Hall hall = activeHall(inst);
+        User admin = user(50L, inst);
+        admin.setRole(Role.ADMIN);
+
+        Booking first = booking(hall, user(1L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        Booking second = booking(hall, user(2L), LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(2));
+        second.setId(11L);
+
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(first));
+        when(bookingRepository.findById(11L)).thenReturn(Optional.of(second));
+        // Both pass the fast-path check (neither is APPROVED yet) — this is the
+        // race the exclusion constraint exists to catch.
+        when(bookingRepository.findOverlappingBookings(eq(2L), anyLong(), any(), any()))
+                .thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> {
+            Booking b = inv.getArgument(0);
+            if (b.getId().equals(11L)) {
+                throw new DataIntegrityViolationException(
+                        "ERROR: conflicting key value violates exclusion constraint \"excl_bookings_hall_time_overlap\"");
+            }
+            return b;
+        });
+
+        BookingService.BulkResult result = bookingService.approveAll(List.of(10L, 11L), admin);
+
+        assertThat(result.succeeded()).containsExactly(10L);
+        assertThat(result.failed()).hasSize(1);
+        assertThat(result.failed().get(0).id()).isEqualTo(11L);
+        assertThat(result.failed().get(0).reason()).contains("was just booked");
+        assertThat(first.getStatus()).isEqualTo(BookingStatus.APPROVED);
     }
 
     @Test

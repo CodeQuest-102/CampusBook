@@ -96,10 +96,17 @@ export async function downloadMyBookingsIcs(): Promise<string> {
 
 async function downloadIcs(path: string, filename: string): Promise<string> {
   const token = await loadToken();
+  // This bypasses apiFetch (FileSystem.downloadAsync needs a URI, not a fetch
+  // Response), so a missing token would otherwise go out with no Authorization
+  // header at all and come back as a generic "could not export" — instead of
+  // the clear "please sign in again" apiFetch gives every other request.
+  if (!token) {
+    throw new ApiError(401, 'Your session has expired. Please log in again.');
+  }
   const res = await FileSystem.downloadAsync(
     `${API_BASE_URL}${path}`,
     `${FileSystem.cacheDirectory}${filename}`,
-    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    { headers: { Authorization: `Bearer ${token}` } },
   );
   if (res.status < 200 || res.status >= 300) {
     throw new ApiError(res.status, 'Could not export this booking to your calendar.');

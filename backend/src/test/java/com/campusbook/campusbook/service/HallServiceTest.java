@@ -4,12 +4,14 @@ import com.campusbook.campusbook.entity.Booking;
 import com.campusbook.campusbook.entity.Hall;
 import com.campusbook.campusbook.entity.Institution;
 import com.campusbook.campusbook.entity.User;
+import com.campusbook.campusbook.exception.ResourceNotFoundException;
 import com.campusbook.campusbook.exception.SubscriptionLimitExceededException;
 import com.campusbook.campusbook.repository.BookingRepository;
 import com.campusbook.campusbook.repository.HallRepository;
 import com.campusbook.campusbook.subscription.SubscriptionCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -163,6 +165,29 @@ class HallServiceTest {
         verify(hallRepository).save(any(Hall.class));
     }
 
+    /**
+     * The lock must be taken before the room-cap/duplicate-code checks — it's
+     * what serializes two concurrent creates for the same institution so
+     * neither can slip past the count check while the other's insert is still
+     * in flight. Taking it after the checks would defeat the point.
+     */
+    @Test
+    void createHall_acquiresTheInstitutionLockBeforeCheckingTheCapOrRoomCode() {
+        withRealCatalog();
+        User admin = actor();
+        when(hallRepository.findByInstitutionIdAndRoomCode(1L, "GF9")).thenReturn(Optional.empty());
+        when(hallRepository.countByInstitutionId(1L)).thenReturn(0L);
+        when(hallRepository.save(any(Hall.class))).thenAnswer(i -> i.getArgument(0));
+
+        hallService.createHall(newHall(), admin);
+
+        InOrder order = inOrder(hallRepository);
+        order.verify(hallRepository).acquireInstitutionLock(1L);
+        order.verify(hallRepository).findByInstitutionIdAndRoomCode(1L, "GF9");
+        order.verify(hallRepository).countByInstitutionId(1L);
+        order.verify(hallRepository).save(any(Hall.class));
+    }
+
     /* ----------------------------- deletion ------------------------------- */
 
     private Hall existingHall(User owner) {
@@ -170,6 +195,19 @@ class HallServiceTest {
         h.setId(7L);
         h.setInstitution(owner.getInstitution());
         return h;
+    }
+
+    /**
+     * A missing hall is a 404, not the 400 a bad-input case gets — the two
+     * used to share IllegalArgumentException and collapse into one status.
+     */
+    @Test
+    void deleteHall_throwsNotFoundWhenTheHallDoesNotExist() {
+        when(hallRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> hallService.deleteHall(999L, actor()))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Hall not found");
     }
 
     @Test

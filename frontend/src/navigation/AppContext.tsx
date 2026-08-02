@@ -33,7 +33,7 @@ export interface SignUpInput {
   department?: string;
 }
 
-interface AppState {
+export interface AppState {
   role: Role;
   /** Editable profile for the signed-in user. */
   profile: Profile;

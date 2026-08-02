@@ -1,5 +1,7 @@
 package com.campusbook.campusbook.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -14,14 +16,22 @@ import java.util.stream.Stream;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(IllegalArgumentException e) {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND.value(), e.getMessage()));
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ErrorResponse> handleBadState(IllegalStateException e) {
+    /**
+     * Both are caller-input problems, not missing resources — a request that
+     * references a real hall/booking but with an invalid or conflicting value
+     * (bad time window, hall unavailable, etc). {@link ResourceNotFoundException}
+     * above is the only thing that should map to 404.
+     */
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<ErrorResponse> handleBadRequest(RuntimeException e) {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), e.getMessage()));
     }
@@ -113,8 +123,15 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), "Malformed or invalid request body"));
     }
 
+    /**
+     * The catch-all for anything not handled above — by definition unexpected
+     * (a bug, a DB hiccup, etc.), so unlike the handlers above it must be
+     * logged: otherwise a real incident in production leaves no trace beyond
+     * the generic message the client sees.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception e) {
+        log.error("Unhandled exception", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of(HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred"));
     }
