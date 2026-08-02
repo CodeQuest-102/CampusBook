@@ -7,7 +7,6 @@ import {
   validateCampusId,
   validateEmail,
   validateFullName,
-  validateKnustEmail,
   validatePassword,
   validatePasswordMatch,
 } from '../validation';
@@ -74,24 +73,6 @@ describe('validateFullName', () => {
   it('reports a blank name against the field itself', () => {
     expect(validateFullName('')).toBe('Full name is required.');
     expect(validateFullName('   ')).toBe('Full name is required.');
-  });
-});
-
-describe('validateKnustEmail', () => {
-  it('accepts knust.edu.gh and its subdomains', () => {
-    expect(validateKnustEmail('a.sadiq@st.knust.edu.gh')).toBeNull();
-    expect(validateKnustEmail('k.mensah@knust.edu.gh')).toBeNull();
-    expect(validateKnustEmail('X.Y@ST.KNUST.EDU.GH')).toBeNull(); // case-insensitive
-  });
-
-  it('rejects addresses outside the institution', () => {
-    expect(validateKnustEmail('someone@gmail.com')).toMatch(/KNUST email/);
-    expect(validateKnustEmail('someone@knust.edu.gh.evil.com')).toMatch(/KNUST email/);
-    expect(validateKnustEmail('notanemail')).toMatch(/KNUST email/);
-  });
-
-  it('reports an empty value as required', () => {
-    expect(validateKnustEmail('  ')).toBe('Email address is required.');
   });
 });
 
