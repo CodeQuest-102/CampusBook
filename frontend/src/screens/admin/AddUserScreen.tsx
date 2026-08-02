@@ -155,11 +155,11 @@ export default function AddUserScreen({ navigation }: Props) {
         <TextField
           label={campusIdLabel(role)}
           icon="id-card-outline"
-          placeholder={role === 'admin' ? 'e.g. ADMIN001' : role === 'staff' ? 'e.g. 200912345' : 'e.g. 20551234'}
+          placeholder={role === 'admin' ? 'e.g. ADMIN001' : 'Their institution-issued ID'}
           keyboardType={numericId ? 'number-pad' : 'default'}
           autoCapitalize={numericId ? 'none' : 'characters'}
           maxLength={numericId ? idLength : undefined}
-          helper={numericId ? `Exactly ${idLength} digits` : 'Any institution-issued staff number'}
+          helper={numericId ? `Exactly ${idLength} digits` : 'Any institution-issued ID'}
           error={errors.id}
           value={staffOrStudentId}
           onChangeText={(t) => {

@@ -8,10 +8,18 @@
 
 import type { Role } from './data/types';
 
-/** Digits in a valid campus ID, by role. Admins and platform admins are provisioned, not self-registered. */
+/**
+ * Digits in a valid campus ID, by role — 0 means "no fixed format, just
+ * required." Self-registration now spans institutions with their own ID
+ * conventions, so a fixed digit count can't be a platform-wide rule; it would
+ * just be one institution's format imposed on every other one. Kept as a
+ * per-role map (rather than deleting it outright) so campusIdLabel's
+ * student/staff distinction and the digit-only keyboard for a *typed* numeric
+ * ID still have a natural home if a future institution wants one enforced.
+ */
 export const CAMPUS_ID_LENGTH: Record<Role, number> = {
-  student: 8,
-  staff: 9,
+  student: 0,
+  staff: 0,
   admin: 0,
   platform_admin: 0,
 };
@@ -21,19 +29,21 @@ export function campusIdLabel(role: Role): string {
   return role === 'student' ? 'Student ID' : 'Staff ID';
 }
 
-/** Strips everything that isn't a digit — campus IDs are numeric. */
+/** Strips everything that isn't a digit — for the roles whose ID is numeric. */
 export function digitsOnly(value: string): string {
   return value.replace(/[^0-9]/g, '');
 }
 
-/** Returns an error message for an invalid campus ID, or null when it's fine. */
+/**
+ * Returns an error message for an invalid campus ID, or null when it's fine.
+ * Institution-issued IDs have no universal format, so past requiring one at
+ * all, this only enforces a digit-count when CAMPUS_ID_LENGTH sets one.
+ */
 export function validateCampusId(role: Role, value: string): string | null {
   const expected = CAMPUS_ID_LENGTH[role];
   const id = value.trim();
   const label = campusIdLabel(role);
 
-  // Admin numbers are institution-issued with no published format (the seeded
-  // one is "ADMIN001"), so there's nothing to check past "they gave us one".
   if (!expected) return id ? null : `${label} is required.`;
 
   if (!id) return `${label} is required.`;

@@ -47,36 +47,23 @@ function pressRoleChip(tree: renderer.ReactTestRenderer, label: 'Student Leader'
 
 describe('SignUpScreen', () => {
   /**
-   * The gap this closes: switching roles used to truncate the ID to the new
-   * role's length instead of clearing it, so a 9-digit staff ID switched to
-   * student silently became a same-length-but-wrong 8-digit "student ID" —
-   * never the user's actual one, yet indistinguishable from a valid entry.
+   * Institution-issued IDs have no fixed format anymore (CAMPUS_ID_LENGTH is 0
+   * for every self-registerable role), so switching roles has nothing to
+   * truncate or clear — a typed ID survives the switch untouched. This used to
+   * auto-clear a same-length-but-now-wrong value when the two roles had
+   * different digit counts; that whole code path only fires again if a future
+   * role sets a length back on CAMPUS_ID_LENGTH.
    */
-  it('clears the campus ID when switching to a role whose ID is shorter, instead of truncating it', () => {
+  it('leaves a typed campus ID untouched when switching roles', () => {
     const tree = render();
-    pressRoleChip(tree, 'Lecturer');
     act(() => {
-      idField(tree).props.onChangeText('200912345');
+      idField(tree).props.onChangeText('20551234');
     });
-    expect(idField(tree).props.value).toBe('200912345');
-
-    pressRoleChip(tree, 'Student Leader');
-
-    expect(idField(tree).props.value).toBe('');
-    expect(idField(tree).props.label).toBe('Student ID');
-  });
-
-  it('leaves an ID untouched when switching to a role whose ID is the same or a longer length', () => {
-    const tree = render();
-    // Default role is student (8 digits); type a too-short, still-in-progress id.
-    act(() => {
-      idField(tree).props.onChangeText('2055');
-    });
+    expect(idField(tree).props.value).toBe('20551234');
 
     pressRoleChip(tree, 'Lecturer');
 
-    // 4 digits doesn't exceed staff's 9-digit cap, so nothing was corrupted —
-    // it's still incomplete, but that's what the field's own validation is for.
-    expect(idField(tree).props.value).toBe('2055');
+    expect(idField(tree).props.value).toBe('20551234');
+    expect(idField(tree).props.label).toBe('Staff ID');
   });
 });
