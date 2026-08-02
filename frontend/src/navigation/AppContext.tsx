@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as Storage from '../storage';
 import type { Role } from '../data/types';
 import { authApi, usersApi, roleFromBackend, roleToBackend } from '../api';
 import {
@@ -68,7 +68,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   const persistSession = useCallback(async (session: PersistedSession) => {
-    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+    await Storage.setItemAsync(SESSION_KEY, JSON.stringify(session));
   }, []);
 
   const applyAuth = useCallback(
@@ -131,7 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await clearToken();
-    await SecureStore.deleteItemAsync(SESSION_KEY);
+    await Storage.deleteItemAsync(SESSION_KEY);
     setIsAuthenticated(false);
     setProfile(EMPTY_PROFILE);
     setRole('student');
@@ -153,7 +153,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const token = await loadToken();
-        const raw = await SecureStore.getItemAsync(SESSION_KEY);
+        const raw = await Storage.getItemAsync(SESSION_KEY);
         if (token && raw) {
           const session: PersistedSession = JSON.parse(raw);
           setRole(session.role);
@@ -175,7 +175,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       setProfile(EMPTY_PROFILE);
       setRole('student');
-      SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {});
+      Storage.deleteItemAsync(SESSION_KEY).catch(() => {});
     });
     return () => setUnauthorizedHandler(null);
   }, []);

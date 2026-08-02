@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as Storage from '../storage';
 import { API_BASE_URL } from '../config';
 
 const TOKEN_KEY = 'campusbook.token';
@@ -15,18 +15,18 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 
 export async function loadToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
-  cachedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+  cachedToken = await Storage.getItemAsync(TOKEN_KEY);
   return cachedToken;
 }
 
 export async function saveToken(token: string): Promise<void> {
   cachedToken = token;
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await Storage.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function clearToken(): Promise<void> {
   cachedToken = null;
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await Storage.deleteItemAsync(TOKEN_KEY);
 }
 
 /** Error carrying the backend's HTTP status and message (from ErrorResponse). */
