@@ -60,6 +60,19 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED.value(), e.getMessage()));
     }
 
+    /**
+     * 403, not 401 — apiFetch on the frontend intercepts every 401 globally (forces
+     * a sign-out and replaces the message with a generic "session expired" string),
+     * which would make it impossible for the login screen to distinguish "wrong
+     * password" from "correct password, unverified email" or to show this message
+     * at all. 403 reaches the frontend intact.
+     */
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailNotVerified(EmailNotVerifiedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(HttpStatus.FORBIDDEN.value(), e.getMessage()));
+    }
+
     @ExceptionHandler(SubscriptionLimitExceededException.class)
     public ResponseEntity<ErrorResponse> handleSubscriptionLimitExceeded(SubscriptionLimitExceededException e) {
         return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)

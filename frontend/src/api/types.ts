@@ -17,6 +17,16 @@ export interface AuthResponse {
   role: BackendRole;
 }
 
+/**
+ * Response for a fresh self-registration — deliberately carries no token, since
+ * the account can't log in until its email is verified. See VerifyEmailPayload.
+ */
+export interface RegisterResponse {
+  fullName: string;
+  email: string;
+  role: BackendRole;
+}
+
 export interface RegisterPayload {
   fullName: string;
   email: string;
@@ -158,6 +168,15 @@ export interface ResetPasswordPayload {
   emailOrId: string;
   otp: string;
   newPassword: string;
+}
+
+export interface VerifyEmailPayload {
+  emailOrId: string;
+  otp: string;
+}
+
+export interface ResendVerificationPayload {
+  emailOrId: string;
 }
 
 export type BackendNotificationType =

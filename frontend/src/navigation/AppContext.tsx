@@ -47,6 +47,8 @@ export interface AppState {
 
   signIn: (emailOrId: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<void>;
+  /** Finishes the sign-in that /verify-email's response has just earned. */
+  completeVerification: (auth: { token: string; fullName: string; email: string; role: string }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -93,12 +95,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [persistSession],
   );
 
-  const signIn = useCallback(
-    async (emailOrId: string, password: string) => {
-      const auth = await authApi.login({ emailOrId, password });
+  // Shared by signIn and completeVerification — both end with a real, usable
+  // token that needs the same "fetch /me, then establish the session" handling.
+  const establishSession = useCallback(
+    async (auth: { token: string; fullName: string; email: string; role: string }) => {
       // Persist the token first so the follow-up /me call is authenticated.
       await saveToken(auth.token);
-      // The login response omits department and the campus ID; one /me call
+      // The auth response omits department and the campus ID; one /me call
       // fills in both.
       let department = '';
       let staffOrStudentId = '';
@@ -114,20 +117,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [applyAuth],
   );
 
-  const signUp = useCallback(
-    async (input: SignUpInput) => {
-      const auth = await authApi.register({
-        fullName: input.fullName,
-        email: input.email,
-        staffOrStudentId: input.staffOrStudentId,
-        password: input.password,
-        role: roleToBackend(input.role),
-        department: input.department,
-      });
-      await applyAuth(auth, input.department ?? '', input.staffOrStudentId);
+  const signIn = useCallback(
+    async (emailOrId: string, password: string) => {
+      const auth = await authApi.login({ emailOrId, password });
+      await establishSession(auth);
     },
-    [applyAuth],
+    [establishSession],
   );
+
+  const completeVerification = useCallback(
+    async (auth: { token: string; fullName: string; email: string; role: string }) => {
+      await establishSession(auth);
+    },
+    [establishSession],
+  );
+
+  const signUp = useCallback(async (input: SignUpInput) => {
+    await authApi.register({
+      fullName: input.fullName,
+      email: input.email,
+      staffOrStudentId: input.staffOrStudentId,
+      password: input.password,
+      role: roleToBackend(input.role),
+      department: input.department,
+    });
+    // No session established here — the account can't log in until its email
+    // is verified. The caller (SignUpScreen) navigates to VerifyEmail.
+  }, []);
 
   const signOut = useCallback(async () => {
     await clearToken();
@@ -190,9 +206,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isBootstrapping,
       signIn,
       signUp,
+      completeVerification,
       signOut,
     }),
-    [role, profile, updateProfile, isAuthenticated, isBootstrapping, signIn, signUp, signOut],
+    [
+      role,
+      profile,
+      updateProfile,
+      isAuthenticated,
+      isBootstrapping,
+      signIn,
+      signUp,
+      completeVerification,
+      signOut,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

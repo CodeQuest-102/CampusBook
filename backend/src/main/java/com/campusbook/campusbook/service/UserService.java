@@ -30,6 +30,10 @@ public class UserService {
         user.setInstitution(institution);
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        // The one creation path that must leave this false — self-registration is
+        // the only unverified trust gap in the system (see EmailVerificationService).
+        // Redundant with the entity default; kept explicit so it can't be missed.
+        user.setEmailVerified(false);
         return userRepository.save(user);
     }
 
@@ -77,6 +81,9 @@ public class UserService {
         user.setDepartment(request.getDepartment() == null ? null : request.getDepartment().trim());
         user.setInstitution(admin.getInstitution());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        // An admin vouching for a colleague isn't the same trust gap as an
+        // anonymous public registration — provisioned accounts skip verification.
+        user.setEmailVerified(true);
 
         return userRepository.save(user);
     }

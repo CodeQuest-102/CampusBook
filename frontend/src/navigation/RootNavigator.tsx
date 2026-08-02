@@ -33,6 +33,7 @@ import CreateInstitutionScreen from '../screens/platform/CreateInstitutionScreen
 
 // Secondary screens reached from Profile / Settings
 import ForgotPasswordScreen from '../screens/misc/ForgotPasswordScreen';
+import VerifyEmailScreen from '../screens/misc/VerifyEmailScreen';
 import MyRequestsScreen from '../screens/misc/MyRequestsScreen';
 import SettingsScreen from '../screens/misc/SettingsScreen';
 import HelpSupportScreen from '../screens/misc/HelpSupportScreen';
@@ -112,6 +113,7 @@ export default function RootNavigator() {
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="SignUp" component={SignUpScreen} />
                 <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+                <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
               </>
             ) : (
               // Authenticated app.

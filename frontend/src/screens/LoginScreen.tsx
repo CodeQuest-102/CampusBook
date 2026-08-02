@@ -28,6 +28,13 @@ export default function LoginScreen({ navigation }: Props) {
       await signIn(emailOrId.trim(), password);
       // On success the navigator swaps to the authenticated stack automatically.
     } catch (e) {
+      // 403 means the password was right but the email isn't verified yet —
+      // send them straight to the actionable next step, not a generic error.
+      // (401 stays a plain error: apiFetch already rewrites its message.)
+      if (e instanceof ApiError && e.status === 403) {
+        navigation.navigate('VerifyEmail', { emailOrId: emailOrId.trim() });
+        return;
+      }
       setError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);

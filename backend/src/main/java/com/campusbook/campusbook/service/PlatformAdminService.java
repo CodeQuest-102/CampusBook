@@ -72,6 +72,9 @@ public class PlatformAdminService {
         admin.setDepartment(request.getAdminDepartment() == null ? null : request.getAdminDepartment().trim());
         admin.setInstitution(saved);
         admin.setPassword(passwordEncoder.encode(request.getAdminPassword()));
+        // A platform admin onboarding a school isn't the same trust gap as an
+        // anonymous public registration — provisioned accounts skip verification.
+        admin.setEmailVerified(true);
         userRepository.save(admin);
 
         return toSummary(saved);

@@ -99,7 +99,8 @@ export default function SignUpScreen({ navigation }: Props) {
         department: department.trim() || undefined,
         password,
       });
-      // Success → navigator swaps to the authenticated stack automatically.
+      // Not logged in yet — the account needs its email verified first.
+      navigation.navigate('VerifyEmail', { emailOrId: email.trim() });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Sign up failed. Please try again.');
     } finally {

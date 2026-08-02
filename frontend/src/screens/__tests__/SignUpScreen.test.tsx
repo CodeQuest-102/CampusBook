@@ -4,6 +4,7 @@ import { TouchableOpacity, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SignUpScreen from '../SignUpScreen';
 import TextField from '../../components/TextField';
+import Button from '../../components/Button';
 
 const mockSignUp = jest.fn();
 jest.mock('../../navigation/AppContext', () => ({ useApp: () => ({ signUp: mockSignUp }) }));
@@ -45,7 +46,52 @@ function pressRoleChip(tree: renderer.ReactTestRenderer, label: 'Student Leader'
   });
 }
 
+function fieldByLabel(tree: renderer.ReactTestRenderer, label: string) {
+  return tree.root.findAllByType(TextField).find((n) => n.props.label === label)!;
+}
+
+async function flush() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe('SignUpScreen', () => {
+  beforeEach(() => {
+    mockSignUp.mockReset();
+    navigation.navigate.mockReset();
+  });
+
+  /**
+   * After a successful sign-up the account still can't log in — its email
+   * needs verifying first — so this must land on VerifyEmail, not the
+   * authenticated app.
+   */
+  it('navigates to VerifyEmail with the submitted address after a successful sign-up', async () => {
+    mockSignUp.mockResolvedValue(undefined);
+    const tree = render();
+
+    act(() => {
+      fieldByLabel(tree, 'Full Name').props.onChangeText('Abubakar Sadiq');
+      fieldByLabel(tree, 'Email Address').props.onChangeText('new.student@knust.edu.gh');
+      idField(tree).props.onChangeText('20551234');
+      fieldByLabel(tree, 'Password').props.onChangeText('password1');
+      fieldByLabel(tree, 'Confirm Password').props.onChangeText('password1');
+    });
+
+    const submit = tree.root.findAllByType(Button).find((n) => n.props.title === 'Sign Up')!;
+    act(() => {
+      submit.props.onPress();
+    });
+    await flush();
+
+    expect(mockSignUp).toHaveBeenCalled();
+    expect(navigation.navigate).toHaveBeenCalledWith('VerifyEmail', {
+      emailOrId: 'new.student@knust.edu.gh',
+    });
+  });
+
   /**
    * Institution-issued IDs have no fixed format anymore (CAMPUS_ID_LENGTH is 0
    * for every self-registerable role), so switching roles has nothing to

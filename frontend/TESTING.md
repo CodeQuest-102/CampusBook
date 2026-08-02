@@ -54,14 +54,15 @@ staff/student ID works as the handle:
 
 | Role | Email | Staff / Student ID | Password |
 | --- | --- | --- | --- |
-| Admin | `admin@campusbook.local` | `ADMIN001` | `admin12345` |
-| Lecturer | `lecturer@campusbook.local` | `200912345` | `lecturer12345` |
-| Student | `student@campusbook.local` | `20551234` | `student12345` |
+| Admin | `admin@knust.edu.gh` | `ADMIN001` | `admin12345` |
+| Lecturer | `lecturer@knust.edu.gh` | `200912345` | `lecturer12345` |
+| Student | `student@knust.edu.gh` | `20551234` | `student12345` |
 
 To switch roles, **Profile tab → Logout**, then log in as another account. You
-can also **Sign Up** a fresh Student Leader or Lecturer — KNUST email required
-(`…@knust.edu.gh`), student IDs are 8 digits and staff IDs are 9. Admin accounts
-can't be self-registered; the server rejects it.
+can also **Sign Up** a fresh Student Leader or Lecturer — the email just needs
+to match a registered institution's domain (e.g. `…@knust.edu.gh`), and the
+campus ID has no fixed format. Admin accounts can't be self-registered; the
+server rejects it.
 
 ---
 
@@ -74,8 +75,14 @@ Go role by role. For each screen check: **(a)** it renders without a crash,
 ### Auth
 - [ ] Splash → Onboarding (swipe 3 slides, Skip/Next work) → Login
 - [ ] Login with a wrong password shows an error, not a crash
-- [ ] Sign Up: non-KNUST email is rejected; wrong-length ID is rejected; a valid
-      sign-up lands you in the app
+- [ ] Sign Up: an email at an unregistered domain is rejected; a valid sign-up
+      lands you on **Verify Email**, not directly in the app
+- [ ] Verify Email: read the code from the **backend console log** (mail is off
+      by default), enter it, land in the app; log out and back in with the same
+      (now-verified) account to confirm it isn't asked again; sign up a
+      *different* account and try logging in with it **before** verifying — it
+      should be routed back to Verify Email with a clear message, not a generic
+      sign-in error
 - [ ] Forgot Password: request a code, read it from the **backend console log**
       (mail is off by default), set a new password, log in with it
 

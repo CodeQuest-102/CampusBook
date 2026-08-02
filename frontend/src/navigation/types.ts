@@ -34,6 +34,7 @@ export type RootStackParamList = {
 
   // Auth extras + secondary destinations reached from Profile / Settings
   ForgotPassword: undefined;
+  VerifyEmail: { emailOrId: string };
   MyRequests: undefined;
   Settings: undefined;
   HelpSupport: undefined;
