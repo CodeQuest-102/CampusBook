@@ -103,7 +103,7 @@ API docs (Swagger UI): http://localhost:8080/swagger-ui.html
 
 > **Password reset in development:** email is off by default (`MAIL_ENABLED=false`),
 > so the one-time reset code is **printed to the backend console** in a banner.
-> That keeps the whole reset flow demoable without an SMTP account.
+> That keeps the whole reset flow demoable without a Brevo account.
 
 > **Email verification in development:** same deal — the code that's emailed on
 > self-registration is also **printed to the backend console** in a banner. A
@@ -158,7 +158,7 @@ outside local development.**
 
 Backend: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MS`,
 `CORS_ALLOWED_ORIGINS`, `SERVER_PORT`, for email
-`MAIL_ENABLED`, `MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+`MAIL_ENABLED`, `MAIL_FROM`, `BREVO_API_KEY`, `BREVO_BASE_URL`,
 and for payments `PAYSTACK_ENABLED`, `PAYSTACK_SECRET_KEY`, `PAYSTACK_BASE_URL`,
 `PAYSTACK_CALLBACK_URL`.
 Frontend: `EXPO_PUBLIC_API_URL`.
@@ -190,19 +190,21 @@ runtime, so it deploys as a Docker web service):
    `backend/Dockerfile`, Docker context `backend/`.
 3. Set env vars: `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` (above), a fresh
    `JWT_SECRET` (never the bundled default), `CORS_ALLOWED_ORIGINS` (a real
-   origin, not `*`), `SPRING_PROFILES_ACTIVE=prod`, and the `MAIL_*` vars for
-   Brevo (see below). Render injects `PORT` itself — `server.port` already
-   honors it, no `SERVER_PORT` needed.
+   origin, not `*`), `SPRING_PROFILES_ACTIVE=prod`, and the `MAIL_*`/`BREVO_*`
+   vars for Brevo (see below). Render injects `PORT` itself — `server.port`
+   already honors it, no `SERVER_PORT` needed.
 4. Deploy and check the logs: Flyway migrating cleanly, the seeder adding demo
    data, no `ProductionConfigGuard` startup failure.
 
 Then point the Expo app at it via `frontend/.env`'s `EXPO_PUBLIC_API_URL`.
 
-Outbound mail (password reset, email verification) is suggested via **Brevo**'s
-SMTP relay — see the `MAIL_*` comments in `backend/.env.example`. It's a
-drop-in credential swap (`MAIL_HOST=smtp-relay.brevo.com`); the `MAIL_FROM`
-address must be verified in Brevo's dashboard first (Senders, Domains &
-Dedicated IPs → Senders).
+Outbound mail (password reset, email verification) goes through **Brevo**'s
+transactional email **HTTP API**, not SMTP — cloud hosts including Render
+commonly block outbound SMTP ports (25/587/2525) to curb spam abuse, which
+makes SMTP a dead end for a hosted instance. Set `BREVO_API_KEY` from Brevo's
+SMTP & API settings → "API keys & MCP" tab (a separate key from the SMTP one);
+the `MAIL_FROM` address must be verified in Brevo's dashboard first (Senders,
+Domains & Dedicated IPs → Senders).
 
 ## Testing
 
