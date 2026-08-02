@@ -17,7 +17,7 @@ Swagger UI: http://localhost:8080/swagger-ui.html
 
 Password-reset and email-verification emails are both off by default, so their
 codes are **printed to the console** — both flows are fully usable locally
-with no SMTP account.
+with no Brevo account.
 
 ## Test
 
@@ -39,8 +39,8 @@ Swagger and, through `config/ProductionConfigGuard`, refuses to start if
 
 Deploys via the included `Dockerfile` (Render has no native Java runtime) —
 see the root README's "Deploying to Render" section for the full checklist.
-Mail defaults to Brevo's SMTP relay; `MAIL_HOST`/`MAIL_USERNAME`/`MAIL_PASSWORD`
-are just credentials, swappable for any SMTP provider with no code change.
+Mail goes through Brevo's transactional email **HTTP API** (`service/BrevoClient.java`),
+not SMTP — cloud hosts including Render commonly block outbound SMTP ports.
 
 ## Database migrations
 
