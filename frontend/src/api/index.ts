@@ -5,6 +5,7 @@ export * as notificationsApi from './notifications';
 export * as usersApi from './users';
 export * as reportsApi from './reports';
 export * as subscriptionApi from './subscription';
+export * as platformApi from './platform';
 export * from './adapters';
 export { ApiError } from './client';
 export type * from './types';

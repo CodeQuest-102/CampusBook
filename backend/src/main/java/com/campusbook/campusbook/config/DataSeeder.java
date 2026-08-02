@@ -56,6 +56,34 @@ public class DataSeeder {
                         return institutionRepository.save(institution);
                     });
 
+            // Sentinel institution platform-admin accounts belong to, purely to
+            // satisfy users.institution_id's NOT NULL constraint — a platform
+            // admin's real power comes from their role, not this institution.
+            // Marked `internal` so PlatformAdminService.listInstitutions excludes
+            // it from the cross-institution monitoring view.
+            Institution internalInst = institutionRepository.findAll().stream()
+                    .filter(i -> i.getName().equals("CampusBook Internal"))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        Institution institution = new Institution();
+                        institution.setName("CampusBook Internal");
+                        institution.setTier(SubscriptionTier.ENTERPRISE);
+                        institution.setEmailDomain("campusbook.internal");
+                        institution.setInternal(true);
+                        return institutionRepository.save(institution);
+                    });
+
+            if (!userRepository.existsByEmail("platform@campusbook.local")) {
+                User platformAdmin = new User();
+                platformAdmin.setFullName("CampusBook Platform Admin");
+                platformAdmin.setEmail("platform@campusbook.local");
+                platformAdmin.setStaffOrStudentId("PLATFORM001");
+                platformAdmin.setPassword(passwordEncoder.encode("platform12345"));
+                platformAdmin.setRole(Role.PLATFORM_ADMIN);
+                platformAdmin.setInstitution(internalInst);
+                userRepository.save(platformAdmin);
+            }
+
             if (hallRepository.count() == 0) {
                 hallRepository.saveAll(java.util.List.of(
                         buildHall("Science Complex Block", "GF1", 120, true, true, true, knust),

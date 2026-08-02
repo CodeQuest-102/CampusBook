@@ -44,6 +44,7 @@ can neither see nor act on another campus's rooms, requests or reports.
 | Student leader | `STUDENT_LEADER` | browse, book, manage own bookings |
 | Lecturer | `LECTURER` | same as student leader |
 | Admin | `ADMIN` | approve/reject, manage rooms & users, analytics, subscription |
+| Platform admin | `PLATFORM_ADMIN` | onboard new institutions, view a read-only cross-institution summary — no access to any one school's rooms, bookings or users |
 
 | Tier | Price | Limits / features |
 |------|-------|-------------------|
@@ -121,10 +122,16 @@ The iOS simulator reaches the backend at `localhost:8080` automatically. For a
 | Admin | `admin@campusbook.local` | `ADMIN001` | `admin12345` |
 | Lecturer | `lecturer@campusbook.local` | `200912345` | `lecturer12345` |
 | Student | `student@campusbook.local` | `20551234` | `student12345` |
+| Platform admin | `platform@campusbook.local` | `PLATFORM001` | `platform12345` |
 
 Either the email or the ID works as the login handle. KNUST IDs are **8 digits for
 students, 9 for staff** — enforced on sign-up by both the app and the API. Admin
 accounts are provisioned rather than self-registered, so they're exempt.
+
+The platform admin belongs to a seeded, internal-only "CampusBook Internal"
+institution that never appears in its own institution list — it's a sentinel to
+satisfy the `institution_id` foreign key, not a real customer. Platform-admin
+accounts are seed-only for now; there's no self-service way to create another one.
 
 ## Configuration (env vars)
 

@@ -53,6 +53,10 @@ class AuthorizationIntegrationTest {
         return tokenFor("student@campusbook.local", "student12345");
     }
 
+    private String platformAdminToken() throws Exception {
+        return tokenFor("platform@campusbook.local", "platform12345");
+    }
+
     /* --------------------------- unauthenticated --------------------------- */
 
     @Test
@@ -212,6 +216,68 @@ class AuthorizationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
+    }
+
+    /* --------------------------- platform-admin only ------------------------ */
+
+    @Test
+    void listInstitutions_withoutToken_is401() throws Exception {
+        mvc.perform(get("/api/platform/institutions"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * The test that actually proves PLATFORM_ADMIN doesn't accidentally widen
+     * what a regular institution ADMIN can reach — a platform admin is a
+     * separate role, not an ADMIN with extra powers, so an ordinary campus
+     * admin must be shut out of the cross-institution endpoints just like
+     * everyone else.
+     */
+    @Test
+    void listInstitutions_asRegularAdmin_is403() throws Exception {
+        mvc.perform(get("/api/platform/institutions").header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listInstitutions_asPlatformAdmin_is200() throws Exception {
+        mvc.perform(get("/api/platform/institutions").header("Authorization", "Bearer " + platformAdminToken()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void createInstitution_asRegularAdmin_is403() throws Exception {
+        // A well-formed body, so this proves the role gate itself rejects the
+        // request — not bean validation short-circuiting on an empty one.
+        String body = """
+                {"institutionName":"Sneaky School","emailDomain":"sneaky.edu",
+                 "tier":"FREE","adminFullName":"Sneaky Admin","adminEmail":"admin@sneaky.edu",
+                 "adminStaffOrStudentId":"SNEAKY001","adminPassword":"password1"}""";
+        mvc.perform(post("/api/platform/institutions")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Institution name and email domain are both unique for the life of the
+     * database, and this suite runs against a real one — so a fixed identity
+     * here would pass once and then fail on every later run as a duplicate.
+     * Both are randomised per run to keep the test repeatable.
+     */
+    @Test
+    void createInstitution_asPlatformAdmin_is201() throws Exception {
+        String suffix = String.valueOf(300_000_000 + new java.util.Random().nextInt(99_999_999));
+        String body = """
+                {"institutionName":"Test Institution %s","emailDomain":"test-%s.edu",
+                 "tier":"FREE","adminFullName":"New Admin","adminEmail":"admin@test-%s.edu",
+                 "adminStaffOrStudentId":"NEW%s","adminPassword":"password1"}""".formatted(suffix, suffix, suffix, suffix);
+        mvc.perform(post("/api/platform/institutions")
+                        .header("Authorization", "Bearer " + platformAdminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
     }
 
     /* ------------------------- reset: bad code is 401 ---------------------- */

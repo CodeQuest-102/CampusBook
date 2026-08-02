@@ -47,4 +47,7 @@ export type RootStackParamList = {
     planName: string;
   };
   RoomForm: { mode: 'add' | 'edit'; room?: Room };
+
+  // Platform-admin only
+  CreateInstitution: undefined;
 };

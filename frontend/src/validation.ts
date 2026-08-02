@@ -8,11 +8,12 @@
 
 import type { Role } from './data/types';
 
-/** Digits in a valid campus ID, by role. Admins are provisioned, not self-registered. */
+/** Digits in a valid campus ID, by role. Admins and platform admins are provisioned, not self-registered. */
 export const CAMPUS_ID_LENGTH: Record<Role, number> = {
   student: 8,
   staff: 9,
   admin: 0,
+  platform_admin: 0,
 };
 
 /** Field label for a role's campus ID. Admins carry a staff number. */

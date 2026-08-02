@@ -33,6 +33,10 @@ public class Institution {
     @Column(nullable = false)
     private SubscriptionTier tier = SubscriptionTier.FREE;
 
+    /** True only for the seeded institution platform-admin accounts belong to — never a real customer, excluded from institution monitoring. */
+    @Column(nullable = false)
+    private boolean internal = false;
+
     // Stub feature flags for future tiers — not enforced yet
     private boolean analyticsEnabled = false;
     private boolean customNotificationsEnabled = false;

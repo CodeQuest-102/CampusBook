@@ -5,7 +5,7 @@
  */
 
 /** Backend role enum. */
-export type BackendRole = 'ADMIN' | 'LECTURER' | 'STUDENT_LEADER';
+export type BackendRole = 'ADMIN' | 'LECTURER' | 'STUDENT_LEADER' | 'PLATFORM_ADMIN';
 
 /** Backend booking status enum. */
 export type BackendBookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
@@ -244,4 +244,28 @@ export interface ReportsResponse {
   peakDay: { name: string; count: number };
   utilizationRate: number;
   bookingsOverTime: { label: string; value: number }[];
+}
+
+/** Platform-admin only: create a new institution + its first admin account in one step. */
+export interface CreateInstitutionPayload {
+  institutionName: string;
+  emailDomain: string;
+  tier: SubscriptionTier;
+  adminFullName: string;
+  adminEmail: string;
+  adminStaffOrStudentId: string;
+  adminPassword: string;
+  adminDepartment?: string;
+}
+
+/** Platform-admin only: one row in the cross-institution monitoring list. */
+export interface InstitutionSummaryResponse {
+  id: number;
+  name: string;
+  emailDomain: string;
+  tier: SubscriptionTier;
+  hallCount: number;
+  bookingCount: number;
+  userCount: number;
+  createdAt: string;
 }

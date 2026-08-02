@@ -67,6 +67,7 @@ public class UserService {
      */
     public User createByAdmin(AdminCreateUserRequest request, User admin) {
         assertNotAlreadyRegistered(request.getEmail(), request.getStaffOrStudentId());
+        assertEmailBelongsToInstitution(request.getEmail(), admin.getInstitution());
 
         User user = new User();
         user.setFullName(request.getFullName().trim());
@@ -80,8 +81,29 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    /** Email and campus ID are both unique across the whole system, not per campus. */
-    private void assertNotAlreadyRegistered(String email, String staffOrStudentId) {
+    /**
+     * An admin-provisioned account's email must belong to the admin's own
+     * institution's domain — institution assignment always comes from the
+     * acting admin, never the email (see createByAdmin above), so letting the
+     * two disagree would produce an account whose email domain doesn't match
+     * the institution it actually belongs to.
+     */
+    private void assertEmailBelongsToInstitution(String email, Institution institution) {
+        String domain = EmailDomainMatcher.domainOf(email);
+        if (domain == null || !EmailDomainMatcher.matches(domain, institution.getEmailDomain())) {
+            throw new IllegalArgumentException(
+                    "Use an email address at " + institution.getEmailDomain()
+                            + " — the account will belong to " + institution.getName() + ".");
+        }
+    }
+
+    /**
+     * Email and campus ID are both unique across the whole system, not per
+     * campus. Package-private so {@link PlatformAdminService} can reuse the
+     * same rule when provisioning a new institution's first admin, instead of
+     * duplicating it.
+     */
+    void assertNotAlreadyRegistered(String email, String staffOrStudentId) {
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateUserException("Email already registered");
         }
