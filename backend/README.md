@@ -37,6 +37,11 @@ Run production with `SPRING_PROFILES_ACTIVE=prod`: it disables SQL logging and
 Swagger and, through `config/ProductionConfigGuard`, refuses to start if
 `JWT_SECRET` is the bundled default or CORS is left as `*`.
 
+Deploys via the included `Dockerfile` (Render has no native Java runtime) —
+see the root README's "Deploying to Render" section for the full checklist.
+Mail defaults to Brevo's SMTP relay; `MAIL_HOST`/`MAIL_USERNAME`/`MAIL_PASSWORD`
+are just credentials, swappable for any SMTP provider with no code change.
+
 ## Database migrations
 
 Schema lives in `src/main/resources/db/migration` and is owned by Flyway;

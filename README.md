@@ -177,6 +177,33 @@ logging and Swagger, stops Flyway from baselining an unknown schema, and — via
 development default or `CORS_ALLOWED_ORIGINS` is `*`. A crash at boot is
 deliberate: it's better than quietly running an insecure instance.
 
+### Deploying to Render
+
+The backend ships with a `backend/Dockerfile` (Render has no native Java
+runtime, so it deploys as a Docker web service):
+
+1. Create a **Postgres** instance on Render; from its Connections page, compose
+   `DB_URL=jdbc:postgresql://<host>:<port>/<database>` (Render's own combined
+   connection string is `postgres://…`, which the JDBC driver can't parse
+   directly) and set `DB_USERNAME`/`DB_PASSWORD` from the same page.
+2. Create a **Web Service** from this repo — Docker runtime, Dockerfile path
+   `backend/Dockerfile`, Docker context `backend/`.
+3. Set env vars: `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` (above), a fresh
+   `JWT_SECRET` (never the bundled default), `CORS_ALLOWED_ORIGINS` (a real
+   origin, not `*`), `SPRING_PROFILES_ACTIVE=prod`, and the `MAIL_*` vars for
+   Brevo (see below). Render injects `PORT` itself — `server.port` already
+   honors it, no `SERVER_PORT` needed.
+4. Deploy and check the logs: Flyway migrating cleanly, the seeder adding demo
+   data, no `ProductionConfigGuard` startup failure.
+
+Then point the Expo app at it via `frontend/.env`'s `EXPO_PUBLIC_API_URL`.
+
+Outbound mail (password reset, email verification) is suggested via **Brevo**'s
+SMTP relay — see the `MAIL_*` comments in `backend/.env.example`. It's a
+drop-in credential swap (`MAIL_HOST=smtp-relay.brevo.com`); the `MAIL_FROM`
+address must be verified in Brevo's dashboard first (Senders, Domains &
+Dedicated IPs → Senders).
+
 ## Testing
 
 ```bash
