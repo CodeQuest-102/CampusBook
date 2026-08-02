@@ -49,6 +49,19 @@ afterAll(() => {
   global.requestAnimationFrame = originalRaf;
 });
 
+// Seen flaky in CI (never locally): a test occasionally exceeded Jest's
+// default 5000ms on a loaded runner, got marked failed, and its still-running
+// submit() continuation then resolved during a *later* test's flush window —
+// unmounting a tree doesn't cancel an in-flight promise chain, so the extra
+// call landed in that later test's assertion. Two changes close this: more
+// headroom per test, and a flush that drains the microtask queue completely
+// instead of guessing how many `await Promise.resolve()` hops are enough —
+// the guess is exactly what let a slow-resolving chain outlive its own test.
+jest.setTimeout(15000);
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 const navigation = { goBack: jest.fn(), replace: jest.fn(), navigate: jest.fn() } as any;
 
 const room: Room = {
@@ -81,8 +94,7 @@ async function render() {
         <BookingFormScreen route={{ params: { room } } as any} navigation={navigation} />
       </SafeAreaProvider>,
     );
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
   });
   renderedTrees.push(tree);
   return tree;
@@ -149,8 +161,7 @@ describe('BookingFormScreen', () => {
 
     await act(async () => {
       submit(tree);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(mockCreateBooking).toHaveBeenCalledTimes(1);
@@ -198,8 +209,7 @@ describe('BookingFormScreen', () => {
 
     await act(async () => {
       submit(tree);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(mockCreateBooking).toHaveBeenCalledTimes(1);
