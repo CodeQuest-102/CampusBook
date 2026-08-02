@@ -5,6 +5,7 @@ import {
   digitsOnly,
   validateAttendance,
   validateCampusId,
+  validateEmail,
   validateFullName,
   validateKnustEmail,
   validatePassword,
@@ -91,6 +92,22 @@ describe('validateKnustEmail', () => {
 
   it('reports an empty value as required', () => {
     expect(validateKnustEmail('  ')).toBe('Email address is required.');
+  });
+});
+
+describe('validateEmail', () => {
+  it('accepts any well-formed address regardless of domain', () => {
+    expect(validateEmail('a.sadiq@st.knust.edu.gh')).toBeNull();
+    expect(validateEmail('someone@ridgeview.edu')).toBeNull();
+    expect(validateEmail('someone@gmail.com')).toBeNull();
+  });
+
+  it('rejects a malformed address', () => {
+    expect(validateEmail('notanemail')).toMatch(/valid email/);
+  });
+
+  it('reports an empty value as required', () => {
+    expect(validateEmail('  ')).toBe('Email address is required.');
   });
 });
 

@@ -36,6 +36,23 @@ public class DataSeeder {
                         Institution institution = new Institution();
                         institution.setName("KNUST");
                         institution.setTier(SubscriptionTier.FREE);
+                        institution.setEmailDomain("knust.edu.gh");
+                        return institutionRepository.save(institution);
+                    });
+
+            // Second institution, deliberately fictional — no halls/users/bookings
+            // of its own. Its only purpose is to make domain-based self-registration
+            // (UserService.resolveInstitutionForEmail) actually verifiable: without
+            // a second institution on file, a registration would trivially land on
+            // KNUST regardless of whether the domain match is correct.
+            institutionRepository.findAll().stream()
+                    .filter(i -> i.getName().equals("Ridgeview University"))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        Institution institution = new Institution();
+                        institution.setName("Ridgeview University");
+                        institution.setTier(SubscriptionTier.FREE);
+                        institution.setEmailDomain("ridgeview.edu");
                         return institutionRepository.save(institution);
                     });
 

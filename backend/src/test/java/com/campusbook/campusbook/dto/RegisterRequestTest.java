@@ -118,24 +118,25 @@ class RegisterRequestTest {
         assertEquals(Set.of("staffOrStudentId"), violations(request(Role.STUDENT_LEADER, "")));
     }
 
+    /**
+     * Domain legitimacy — which institution, if any, an email belongs to — is
+     * resolved against the institutions table in UserService.registerUser, not
+     * enforced here (a @Pattern can't query the database). See
+     * UserServiceTest for the subdomain/lookalike/unrecognized-domain coverage
+     * that used to live in this class.
+     */
     @Test
-    void requiresAKnustEmailAddress() {
-        RegisterRequest outside = request(Role.STUDENT_LEADER, "20551234");
-        outside.setEmail("someone@gmail.com");
-        assertTrue(violations(outside).contains("email"));
-
-        // A lookalike domain must not slip through.
-        RegisterRequest lookalike = request(Role.STUDENT_LEADER, "20551234");
-        lookalike.setEmail("someone@knust.edu.gh.evil.com");
-        assertTrue(violations(lookalike).contains("email"));
+    void acceptsAnyWellFormedEmailAtTheDtoLevel() {
+        RegisterRequest outsideKnust = request(Role.STUDENT_LEADER, "20551234");
+        outsideKnust.setEmail("someone@gmail.com");
+        assertTrue(violations(outsideKnust).isEmpty());
     }
 
     @Test
-    void acceptsKnustSubdomains() {
-        RegisterRequest staffDomain = request(Role.LECTURER, "200912345");
-        staffDomain.setEmail("k.mensah@knust.edu.gh");
-        assertTrue(violations(staffDomain).isEmpty());
-        // request() already uses @st.knust.edu.gh, covered by the accept tests above.
+    void rejectsAMalformedEmailAddress() {
+        RegisterRequest malformed = request(Role.STUDENT_LEADER, "20551234");
+        malformed.setEmail("not-an-email");
+        assertTrue(violations(malformed).contains("email"));
     }
 
     @Test

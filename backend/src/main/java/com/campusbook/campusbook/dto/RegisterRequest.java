@@ -6,7 +6,6 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -35,12 +34,12 @@ public class RegisterRequest {
     @NotBlank
     private String fullName;
 
+    // Domain legitimacy (which institution, if any, this email belongs to) is
+    // resolved against the institutions table in UserService.registerUser —
+    // it can't be a @Pattern here since that can't consult the database, and
+    // the set of registered institutions changes without a client release.
     @Email
     @NotBlank
-    @Pattern(
-            regexp = "^[^@\\s]+@([a-z0-9-]+\\.)*knust\\.edu\\.gh$",
-            flags = Pattern.Flag.CASE_INSENSITIVE,
-            message = "Use your KNUST email address (e.g. you@st.knust.edu.gh)")
     private String email;
 
     @NotBlank

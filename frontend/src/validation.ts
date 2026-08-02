@@ -52,8 +52,11 @@ export function validateFullName(value: string): string | null {
 /* ------------------------------- email ----------------------------------- */
 
 /**
- * CampusBook accounts belong to KNUST, so sign-up only accepts institutional
- * addresses. Any subdomain is allowed (`st.knust.edu.gh` today, others later).
+ * Admin-provisioned accounts (AddUserScreen → POST /api/users) are still
+ * restricted to KNUST addresses — see AdminCreateUserRequest, which is
+ * unchanged. This is NOT used for self-registration (SignUpScreen); that
+ * uses validateEmail below, since self-registration now resolves the
+ * institution dynamically from the email domain on the server.
  */
 export const KNUST_EMAIL_PATTERN = /^[^@\s]+@([a-z0-9-]+\.)*knust\.edu\.gh$/i;
 
@@ -62,6 +65,25 @@ export function validateKnustEmail(value: string): string | null {
   if (!email) return 'Email address is required.';
   if (!KNUST_EMAIL_PATTERN.test(email)) {
     return 'Use your KNUST email (e.g. you@st.knust.edu.gh).';
+  }
+  return null;
+}
+
+/**
+ * Self-registration (SignUpScreen) now supports any institution — the
+ * legitimate domain list lives server-side (UserService.registerUser,
+ * matched against the institutions table) because it can change without a
+ * client release. This is just a basic shape check so a typo is caught
+ * before the round-trip; the server remains the real gate on which domains
+ * actually resolve to an institution.
+ */
+const EMAIL_SHAPE_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export function validateEmail(value: string): string | null {
+  const email = value.trim();
+  if (!email) return 'Email address is required.';
+  if (!EMAIL_SHAPE_PATTERN.test(email)) {
+    return 'Enter a valid email address.';
   }
   return null;
 }

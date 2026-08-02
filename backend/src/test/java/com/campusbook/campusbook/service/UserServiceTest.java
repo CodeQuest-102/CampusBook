@@ -40,6 +40,7 @@ class UserServiceTest {
         Institution i = new Institution();
         i.setId(id);
         i.setName("KNUST");
+        i.setEmailDomain("knust.edu.gh");
         return i;
     }
 
@@ -57,23 +58,108 @@ class UserServiceTest {
     /* ----------------------------- registerUser ---------------------------- */
 
     @Test
-    void registerUser_assignsTheFirstInstitutionAndEncodesThePassword() {
+    void registerUser_resolvesTheInstitutionMatchingTheEmailDomain() {
         User toRegister = new User();
         toRegister.setEmail("new@knust.edu.gh");
         toRegister.setStaffOrStudentId("20551234");
         toRegister.setPassword("plaintext");
-        Institution firstInstitution = institution(1L);
+        Institution knust = institution(1L);
 
         when(userRepository.existsByEmail("new@knust.edu.gh")).thenReturn(false);
         when(userRepository.existsByStaffOrStudentId("20551234")).thenReturn(false);
-        when(institutionRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(firstInstitution));
+        when(institutionRepository.findAll()).thenReturn(List.of(knust));
         when(passwordEncoder.encode("plaintext")).thenReturn("encoded");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
         User saved = userService.registerUser(toRegister);
 
-        assertThat(saved.getInstitution()).isEqualTo(firstInstitution);
+        assertThat(saved.getInstitution()).isEqualTo(knust);
         assertThat(saved.getPassword()).isEqualTo("encoded");
+    }
+
+    @Test
+    void registerUser_acceptsAnySubdomainOfTheInstitutionsDomain() {
+        User toRegister = new User();
+        toRegister.setEmail("new@st.knust.edu.gh");
+        toRegister.setStaffOrStudentId("20551234");
+        toRegister.setPassword("plaintext");
+        Institution knust = institution(1L);
+
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(userRepository.existsByStaffOrStudentId(anyString())).thenReturn(false);
+        when(institutionRepository.findAll()).thenReturn(List.of(knust));
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(userService.registerUser(toRegister).getInstitution()).isEqualTo(knust);
+    }
+
+    @Test
+    void registerUser_rejectsALookalikeSuffixDomain() {
+        User toRegister = new User();
+        toRegister.setEmail("new@knust.edu.gh.evil.com");
+        toRegister.setStaffOrStudentId("20551234");
+        Institution knust = institution(1L);
+
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(userRepository.existsByStaffOrStudentId(anyString())).thenReturn(false);
+        when(institutionRepository.findAll()).thenReturn(List.of(knust));
+
+        assertThatThrownBy(() -> userService.registerUser(toRegister))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("knust.edu.gh.evil.com");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void registerUser_rejectsAnUnrecognizedDomain() {
+        User toRegister = new User();
+        toRegister.setEmail("new@gmail.com");
+        toRegister.setStaffOrStudentId("20551234");
+        Institution knust = institution(1L);
+
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(userRepository.existsByStaffOrStudentId(anyString())).thenReturn(false);
+        when(institutionRepository.findAll()).thenReturn(List.of(knust));
+
+        assertThatThrownBy(() -> userService.registerUser(toRegister))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("gmail.com");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    /**
+     * This is the bug being fixed: registration used to always land on
+     * whichever institution sorted first by id, regardless of the
+     * registering email. Here KNUST (id 1) sorts first but the email belongs
+     * to Ridgeview (id 2) — a correct fix must resolve to Ridgeview, not
+     * silently fall back to KNUST.
+     */
+    @Test
+    void registerUser_resolvesTheCorrectInstitutionAmongMultiple_notJustTheFirstById() {
+        User toRegister = new User();
+        toRegister.setEmail("new@ridgeview.edu");
+        toRegister.setStaffOrStudentId("20551234");
+        toRegister.setPassword("plaintext");
+
+        Institution knust = institution(1L); // emailDomain "knust.edu.gh", sorts first
+        Institution ridgeview = new Institution();
+        ridgeview.setId(2L);
+        ridgeview.setName("Ridgeview University");
+        ridgeview.setEmailDomain("ridgeview.edu");
+
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(userRepository.existsByStaffOrStudentId(anyString())).thenReturn(false);
+        when(institutionRepository.findAll()).thenReturn(List.of(knust, ridgeview));
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        User saved = userService.registerUser(toRegister);
+
+        assertThat(saved.getInstitution()).isEqualTo(ridgeview);
+        assertThat(saved.getInstitution()).isNotEqualTo(knust);
     }
 
     @Test
@@ -88,7 +174,7 @@ class UserServiceTest {
                 .hasMessageContaining("Email already registered");
 
         verify(userRepository, never()).save(any());
-        verify(institutionRepository, never()).findFirstByOrderByIdAsc();
+        verify(institutionRepository, never()).findAll();
     }
 
     @Test
@@ -102,29 +188,6 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.registerUser(toRegister))
                 .isInstanceOf(DuplicateUserException.class)
                 .hasMessageContaining("Staff/Student ID already registered");
-
-        verify(userRepository, never()).save(any());
-    }
-
-    /**
-     * Public self-registration has no institution field on the request at all
-     * — it always lands on whichever institution sorts first. Worth having
-     * this documented as a test: it's a real limitation (only one campus can
-     * ever get self-service signups), not something a future refactor should
-     * silently paper over without noticing the behavior changed.
-     */
-    @Test
-    void registerUser_throwsWhenNoInstitutionIsConfigured() {
-        User toRegister = new User();
-        toRegister.setEmail("new@knust.edu.gh");
-        toRegister.setStaffOrStudentId("20551234");
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByStaffOrStudentId(anyString())).thenReturn(false);
-        when(institutionRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.registerUser(toRegister))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("No institution configured");
 
         verify(userRepository, never()).save(any());
     }
@@ -162,8 +225,8 @@ class UserServiceTest {
 
         assertThat(saved.getInstitution()).isEqualTo(adminInstitution);
         assertThat(saved.getPassword()).isEqualTo("encoded");
-        // Scoped from the admin, not the global "first institution" lookup.
-        verify(institutionRepository, never()).findFirstByOrderByIdAsc();
+        // Scoped from the admin, not a domain-based lookup.
+        verify(institutionRepository, never()).findAll();
     }
 
     @Test

@@ -12,8 +12,8 @@ import {
   campusIdLabel,
   digitsOnly,
   validateCampusId,
+  validateEmail,
   validateFullName,
-  validateKnustEmail,
   validatePassword,
   validatePasswordMatch,
 } from '../validation';
@@ -69,7 +69,7 @@ export default function SignUpScreen({ navigation }: Props) {
     // "fill in all required fields", which named no field to go and fix.
     const problems = {
       name: validateFullName(fullName),
-      email: validateKnustEmail(email),
+      email: validateEmail(email),
       id: validateCampusId(role, staffOrStudentId),
       password: validatePassword(password),
       confirm: validatePasswordMatch(password, confirm),
@@ -122,11 +122,11 @@ export default function SignUpScreen({ navigation }: Props) {
         <TextField
           label="Email Address"
           icon="mail-outline"
-          placeholder="you@st.knust.edu.gh"
+          placeholder="you@example.edu"
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
-          helper="Use your KNUST address"
+          helper="We'll match this to your institution automatically"
           error={emailError}
           value={email}
           onChangeText={(t) => {

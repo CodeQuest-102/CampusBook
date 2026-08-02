@@ -24,6 +24,11 @@ public class Institution {
     @Column(unique = true)
     private String name;
 
+    /** Self-registration resolves an institution by matching this against the registering email's domain. */
+    @NotBlank
+    @Column(nullable = false, unique = true)
+    private String emailDomain;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SubscriptionTier tier = SubscriptionTier.FREE;

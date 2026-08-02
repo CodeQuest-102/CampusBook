@@ -177,10 +177,37 @@ class AuthorizationIntegrationTest {
     }
 
     @Test
-    void register_withNonKnustEmail_is400() throws Exception {
+    void register_withUnrecognizedDomain_is400() throws Exception {
+        // No institution has this domain registered — UserService.registerUser
+        // can't resolve which campus this belongs to.
         String body = """
                 {"fullName":"Outsider","email":"outsider@gmail.com",
                  "staffOrStudentId":"20551298","password":"password1","role":"STUDENT_LEADER"}""";
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void register_withRidgeviewEmail_is200() throws Exception {
+        // Proves domain-based resolution works end-to-end for a second seeded
+        // institution, not just the original KNUST one.
+        String staffId = String.valueOf(20_000_000 + new java.util.Random().nextInt(999_999));
+        String body = """
+                {"fullName":"Ridgeview Student","email":"student.%s@ridgeview.edu",
+                 "staffOrStudentId":"%s","password":"password1","role":"STUDENT_LEADER"}""".formatted(staffId, staffId);
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void register_withLookalikeDomain_is400() throws Exception {
+        String body = """
+                {"fullName":"Sneaky","email":"sneaky@knust.edu.gh.evil.com",
+                 "staffOrStudentId":"20551297","password":"password1","role":"STUDENT_LEADER"}""";
         mvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
