@@ -19,6 +19,27 @@ The iOS simulator reaches the backend at `localhost:8080` automatically. For a
 physical device set `EXPO_PUBLIC_API_URL` to your machine's LAN IP — see
 `.env.example`.
 
+## Building a standalone Android APK
+
+For a demo or install outside Expo Go, build a real installable `.apk` via EAS
+Build (Expo's cloud build service — no local Android Studio/SDK needed):
+
+```bash
+npx eas-cli login                              # one-time; needs a free expo.dev account
+npx eas-cli build --platform android --profile preview
+```
+
+The `preview` profile (`eas.json`) produces a sideloadable `.apk` (not the
+Play-Store `.aab` the default profile builds) and bakes in
+`EXPO_PUBLIC_API_URL` pointed at the deployed Render backend — the resulting
+app is fully standalone, no dev server or Expo Go required at runtime. The
+build runs on Expo's servers (~10-20 min); when it finishes, `eas-cli` prints
+an install link with a QR code — open it on an Android device to download and
+install directly.
+
+To point a build at a different backend (e.g. local testing), edit the `env`
+block in `eas.json`'s `preview` profile before building.
+
 ## Structure
 
 ```

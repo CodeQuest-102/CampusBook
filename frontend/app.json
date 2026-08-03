@@ -2,10 +2,12 @@
   "expo": {
     "name": "CampusBook",
     "slug": "campusbook",
+    "owner": "kekx_codex",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "campusbook",
+    "icon": "./assets/icon.png",
     "splash": {
       "backgroundColor": "#0034AC",
       "resizeMode": "contain"
@@ -19,9 +21,11 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0034AC"
       },
-      "package": "com.kekxcodex.campusbook"
+      "package": "com.kekxcodex.campusbook",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro"
@@ -29,6 +33,11 @@
     "plugins": [
       "expo-font",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a44983d6-e286-4caa-bf1f-0580f0ac1fd1"
+      }
+    }
   }
 }
